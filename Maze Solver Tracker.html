@@ -1,0 +1,1591 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Maze Solver Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: panel instrumen — peta rute di atas kertas milimeter sebagai pusat, kontrol & kejadian di samping, grafik sensor di bawah */
+:root {
+  --bg: #eef1f0;
+  --panel: #fcfcfb;
+  --ink: #0e1413;
+  --ink-2: #4b5553;
+  --muted: #7f8987;
+  --line: #d9dfdd;
+  --grid-minor: #e4ecef;
+  --grid-major: #cbd9df;
+  --accent: #1f5f8b;
+  --accent-soft: #dcebf5;
+  --c-follow: #2a78d6;
+  --c-decide: #eb6834;
+  --c-recover: #1baf7a;
+  --c-idle: #9aa3a1;
+  --good: #0ca30c;
+  --good-ink: #006300;
+  --critical: #d03b3b;
+  --warn: #fab219;
+  --ring: rgba(14,20,19,0.10);
+  --font-ui: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1413; --panel: #171d1c; --ink: #f2f5f4; --ink-2: #c1c9c7; --muted: #8b9593;
+    --line: #2a3331; --grid-minor: #1e2826; --grid-major: #2b3a3c; --accent: #6fb1e0; --accent-soft: #1b3142;
+    --c-follow: #3987e5; --c-decide: #d95926; --c-recover: #199e70; --c-idle: #6c7573;
+    --good-ink: #0ca30c; --ring: rgba(255,255,255,0.10); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1413; --panel: #171d1c; --ink: #f2f5f4; --ink-2: #c1c9c7; --muted: #8b9593;
+  --line: #2a3331; --grid-minor: #1e2826; --grid-major: #2b3a3c; --accent: #6fb1e0; --accent-soft: #1b3142;
+  --c-follow: #3987e5; --c-decide: #d95926; --c-recover: #199e70; --c-idle: #6c7573;
+  --good-ink: #0ca30c; --ring: rgba(255,255,255,0.10); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1280px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 40px; display: flex; flex-direction: column; gap: 16px; }
+h1 { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 13px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); }
+.num, .mono { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+
+/* Header */
+.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.top p { margin: 4px 0 0; color: var(--ink-2); max-width: 62ch; }
+.source-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
+.source-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+/* Loader */
+details.loader > summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; align-items: center; gap: 8px; }
+details.loader > summary::-webkit-details-marker { display: none; }
+details.loader > summary::before { content: "+"; font-family: var(--font-data); width: 18px; height: 18px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 4px; color: var(--ink-2); }
+details.loader[open] > summary::before { content: "−"; }
+.loader-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 14px; margin-top: 12px; }
+.steps { margin: 0; padding-left: 18px; color: var(--ink-2); display: flex; flex-direction: column; gap: 4px; }
+.steps code { font-family: var(--font-data); font-size: 12px; background: var(--bg); padding: 1px 4px; border-radius: 3px; }
+textarea { width: 100%; min-height: 130px; resize: vertical; font-family: var(--font-data); font-size: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+button, .file-btn { font-family: var(--font-ui); font-size: 13px; font-weight: 600; border-radius: 7px; padding: 7px 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+button:hover, .file-btn:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button:focus-visible, .file-btn:focus-within, input:focus-visible, textarea:focus-visible, .ev:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.file-btn input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.msg { font-size: 12px; color: var(--ink-2); }
+.msg.err { color: var(--critical); }
+
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+.stat .v { font-size: 22px; font-weight: 600; font-family: var(--font-data); }
+.stat .v small { font-size: 12px; color: var(--ink-2); font-weight: 400; margin-left: 2px; }
+.stat .s { font-size: 12px; color: var(--ink-2); }
+.result-good { color: var(--good-ink); }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* Main grid */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: 16px; align-items: start; }
+.map-box { position: relative; background: var(--panel); border-radius: 8px; border: 1px solid var(--line); overflow: hidden; }
+#map { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; max-height: 70vh; touch-action: none; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 16px; height: 3px; border-radius: 2px; display: inline-block; }
+.legend b { font-weight: 600; }
+.scale { position: absolute; left: 12px; bottom: 10px; font-family: var(--font-data); font-size: 11px; color: var(--ink-2); display: flex; flex-direction: column; gap: 3px; background: color-mix(in srgb, var(--panel) 85%, transparent); padding: 4px 6px; border-radius: 4px; }
+.scale .bar { height: 5px; border: 1.5px solid var(--ink-2); border-top: 0; }
+
+/* Playback */
+.player { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.player input[type=range] { flex: 1 1 200px; min-width: 0; accent-color: var(--accent); }
+.player .time { font-family: var(--font-data); font-size: 13px; min-width: 104px; text-align: right; }
+.speed-group { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.speed-group button { border: 0; border-radius: 0; padding: 6px 9px; font-family: var(--font-data); font-weight: 500; }
+.speed-group button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+
+/* Readout */
+.side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.readout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+.readout div { display: flex; flex-direction: column; min-width: 0; }
+.readout .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.readout .v { font-family: var(--font-data); font-size: 15px; overflow-wrap: anywhere; }
+.state-pill { font-family: var(--font-ui); }
+
+/* Timeline */
+.timeline { list-style: none; margin: 0; padding: 0; max-height: 440px; overflow-y: auto; display: flex; flex-direction: column; }
+.ev { display: grid; grid-template-columns: 54px 22px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 6px; border-radius: 6px; cursor: pointer; border: 0; background: none; text-align: left; width: 100%; font: inherit; color: inherit; }
+.ev:hover { background: var(--bg); }
+.ev.future { opacity: 0.45; }
+.ev.current { background: var(--accent-soft); }
+.ev .t { font-family: var(--font-data); font-size: 12px; color: var(--muted); padding-top: 2px; }
+.ev .ic { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; font-family: var(--font-data); font-size: 11px; font-weight: 600; color: #fff; }
+.ev .title { font-weight: 600; }
+.ev .d { font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+
+/* Charts */
+.charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.chart svg { display: block; width: 100%; height: 150px; overflow: visible; }
+.chart .sub { font-size: 12px; color: var(--ink-2); }
+.tick { font-family: var(--font-data); font-size: 10px; fill: var(--muted); }
+.gridline { stroke: var(--grid-minor); stroke-width: 1; }
+.baseline { stroke: var(--line); stroke-width: 1; }
+.tip { position: fixed; pointer-events: none; background: var(--panel); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 4px 14px var(--ring); border-radius: 6px; padding: 6px 8px; font-size: 12px; z-index: 10; max-width: 240px; }
+.tip b { font-family: var(--font-data); }
+
+/* Lower */
+.lower { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.bars { display: flex; flex-direction: column; gap: 8px; }
+.barrow { display: grid; grid-template-columns: 110px minmax(0, 1fr) 96px; gap: 8px; align-items: center; font-size: 12px; }
+.barrow .track { height: 10px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.barrow .fill { height: 100%; border-radius: 0 4px 4px 0; }
+.barrow .val { font-family: var(--font-data); text-align: right; color: var(--ink-2); }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+td.num { text-align: right; }
+tr.rowlink { cursor: pointer; }
+tr.rowlink:hover td { background: var(--bg); }
+.choice { font-weight: 700; }
+.blocked { color: var(--critical); font-weight: 600; }
+details.raw pre { max-height: 300px; overflow: auto; font-family: var(--font-data); font-size: 11.5px; background: var(--bg); padding: 10px; border-radius: 8px; margin: 10px 0 0; white-space: pre; }
+details.raw summary { cursor: pointer; font-weight: 600; }
+.empty { color: var(--ink-2); font-size: 13px; padding: 8px 0; }
+
+/* Live connection */
+.conn { display: flex; flex-direction: column; gap: 10px; }
+.conn-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.conn-status { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); }
+.conn-status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c-idle); }
+.conn-status[data-s="on"] .dot { background: var(--good); }
+.conn-status[data-s="busy"] .dot { background: var(--warn); }
+.conn-status[data-s="err"] .dot { background: var(--critical); }
+.prog { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2); }
+.prog[data-run="1"] { color: var(--good-ink); border-color: currentColor; }
+.conn-note { font-size: 12.5px; color: var(--ink-2); max-width: 90ch; }
+.conn-note.err { color: var(--critical); }
+.checks { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+.checks label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.checks input { accent-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--line); }
+button.danger { color: var(--critical); }
+.live-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--critical); }
+.live-badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+
+/* Params + console */
+.tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 16px; align-items: start; }
+.param-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pgroups { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px 18px; }
+.pgroup h3 { font-size: 12px; font-weight: 700; margin: 0 0 6px; color: var(--ink); }
+.prow { display: grid; grid-template-columns: minmax(0, 1fr) 118px 58px; gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.prow .pl { font-size: 13px; min-width: 0; }
+.prow .pl small { display: block; font-family: var(--font-data); font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }
+.prow input[type=number], .prow select { width: 100%; font-family: var(--font-data); font-size: 13px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.prow input[type=checkbox] { justify-self: start; width: 18px; height: 18px; accent-color: var(--accent); }
+.prow button { padding: 5px 8px; font-size: 12px; justify-content: center; }
+.prow.dirty input, .prow.dirty select { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn); }
+.prow.ok .pl { color: var(--good-ink); }
+.prow.bad .pl { color: var(--critical); }
+.console pre { height: 330px; overflow: auto; margin: 0; font-family: var(--font-data); font-size: 11.5px; background: var(--bg); padding: 10px; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.console .send { display: flex; gap: 8px; margin-top: 8px; }
+.console .send input { flex: 1; min-width: 0; font-family: var(--font-data); font-size: 13px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); }
+.console .ln-a { color: var(--good-ink); }
+.console .ln-err { color: var(--critical); }
+.console .ln-me { color: var(--accent); }
+
+@media (max-width: 980px) {
+  .main, .lower, .loader-body, .tools { grid-template-columns: minmax(0, 1fr); }
+  .charts { grid-template-columns: minmax(0, 1fr); }
+  .timeline { max-height: 320px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Maze Solver Tracker</h1>
+      <p>Sambungkan ke hub Pybricks lewat Bluetooth untuk melihat rute, keputusan, dan sensor secara langsung, lalu ubah parameter robot saat jalan.</p>
+    </div>
+    <span class="source-chip" id="sourceChip">Data contoh (simulasi)</span>
+  </header>
+
+  <section class="panel conn" aria-label="Koneksi ke hub">
+    <div class="panel-head" style="margin:0"><h2>Koneksi hub</h2><span class="live-badge" id="liveBadge" hidden>Live</span></div>
+    <div class="conn-row">
+      <span class="conn-status" id="connStatus" data-s="off"><span class="dot"></span><span id="connText">Belum tersambung</span></span>
+      <span class="prog" id="progState" data-run="0">Program: –</span>
+      <button class="primary" id="btnConnect" type="button">Sambungkan hub</button>
+      <button id="btnStart" type="button" disabled>Jalankan program</button>
+      <button id="btnStop" type="button" class="danger" disabled>Hentikan program</button>
+      <button id="btnPause" type="button" disabled>Jeda robot</button>
+      <button id="btnClear" type="button">Bersihkan tampilan</button>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="optFollow" checked> Ikuti posisi terbaru</label>
+      <label><input type="checkbox" id="optClear" checked> Bersihkan data saat program mulai</label>
+    </div>
+    <p class="conn-note" id="connNote">Upload program ke hub lewat Pybricks Code, putuskan Pybricks Code, lalu klik <b>Sambungkan hub</b> dan pilih hub-mu. Hub hanya bisa tersambung ke satu aplikasi dalam satu waktu.</p>
+  </section>
+
+  <section class="panel">
+    <details class="loader" id="loader">
+      <summary>Muat log dari robot</summary>
+      <div class="loader-body">
+        <div>
+          <label for="logInput" class="msg">Tempel seluruh isi console di sini (baris <code class="mono">T,</code> dan <code class="mono">E,</code> dibaca, baris lain diabaikan).</label>
+          <textarea id="logInput" spellcheck="false" placeholder="T,2650,0,0,0,FOLLOW_LINE,44,2000,148&#10;E,5180,379,1,OBSTACLE,68&#10;..."></textarea>
+          <div class="btn-row">
+            <button class="primary" id="btnLoad" type="button">Tampilkan run</button>
+            <label class="file-btn">Pilih file .txt<input type="file" id="fileInput" accept=".txt,.log,text/plain"></label>
+            <button id="btnDemo" type="button">Kembali ke contoh</button>
+            <span class="msg" id="loadMsg" role="status"></span>
+          </div>
+        </div>
+        <ol class="steps">
+          <li>Pastikan <code>TELEMETRY = True</code> di program.</li>
+          <li>Jalankan robot dari Pybricks IDE dengan hub tetap tersambung.</li>
+          <li>Setelah selesai, klik panel output, tekan Ctrl+A lalu Ctrl+C.</li>
+          <li>Tempel di kotak ini, lalu klik <b>Tampilkan run</b>.</li>
+        </ol>
+      </div>
+    </details>
+  </section>
+
+  <section class="stats" id="stats" aria-label="Ringkasan run"></section>
+
+  <section class="main">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Peta rute</h2>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="map-box">
+        <svg id="map" role="img" aria-label="Peta rute robot"></svg>
+        <div class="scale" id="scale"><span id="scaleLabel">100 mm</span><div class="bar" id="scaleBar"></div></div>
+      </div>
+      <div class="player">
+        <button id="btnPlay" type="button" aria-label="Putar">Putar</button>
+        <input type="range" id="scrub" min="0" max="1000" step="10" value="0" aria-label="Posisi waktu">
+        <span class="time" id="timeLabel">0.0 / 0.0 s</span>
+        <div class="speed-group" role="group" aria-label="Kecepatan putar">
+          <button type="button" data-speed="1" aria-pressed="false">1×</button>
+          <button type="button" data-speed="2" aria-pressed="true">2×</button>
+          <button type="button" data-speed="5" aria-pressed="false">5×</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <div class="panel-head"><h2>Saat ini</h2></div>
+        <div class="readout" id="readout"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Kejadian</h2><span class="msg" id="evCount"></span></div>
+        <ul class="timeline" id="timeline"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="tools">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Parameter robot</h2>
+        <div class="param-actions">
+          <button id="btnGet" type="button" disabled>Ambil dari robot</button>
+          <button id="btnSendAll" type="button" disabled>Kirim semua perubahan</button>
+          <button id="btnCopyCode" type="button">Salin sebagai kode</button>
+        </div>
+      </div>
+      <p class="msg" id="paramNote">Nilai di bawah adalah nilai awal di program. Setelah tersambung, klik <b>Ambil dari robot</b> untuk melihat nilai yang sedang dipakai. Perubahan berlaku langsung, tapi hilang saat program dijalankan ulang. Pakai <b>Salin sebagai kode</b> untuk menyimpannya ke program.</p>
+      <div class="pgroups" id="params"></div>
+      <textarea id="codeOut" hidden readonly aria-label="Kode parameter"></textarea>
+    </div>
+    <div class="panel console">
+      <div class="panel-head">
+        <h2>Console hub</h2>
+        <div class="checks"><label><input type="checkbox" id="optHideT" checked> Sembunyikan baris T,</label></div>
+      </div>
+      <pre id="console" aria-live="off"></pre>
+      <form class="send" id="sendForm">
+        <input id="sendInput" placeholder="contoh: SET DRIVE_SPEED 180" autocomplete="off" aria-label="Perintah ke robot">
+        <button type="submit" id="btnSend" disabled>Kirim</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="charts">
+    <div class="panel chart">
+      <div class="panel-head"><h2>Kecepatan</h2><span class="sub">mm/s</span></div>
+      <svg id="chSpeed" aria-label="Grafik kecepatan terhadap waktu"></svg>
+    </div>
+    <div class="panel chart">
+      <div class="panel-head"><h2>Color sensor</h2><span class="sub">reflection %</span></div>
+      <svg id="chRefl" aria-label="Grafik nilai reflection terhadap waktu"></svg>
+    </div>
+    <div class="panel chart">
+      <div class="panel-head"><h2>Ultrasonic</h2><span class="sub">mm · kosong = tidak ada benda</span></div>
+      <svg id="chUs" aria-label="Grafik jarak ultrasonic terhadap waktu"></svg>
+    </div>
+  </section>
+
+  <section class="lower">
+    <div class="panel">
+      <div class="panel-head"><h2>Waktu per state</h2></div>
+      <div class="bars" id="stateBars"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Titik keputusan</h2><span class="msg">klik baris untuk lompat ke waktunya</span></div>
+      <div class="table-wrap"><table id="nodeTable"></table></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <details class="raw">
+      <summary>Log mentah</summary>
+      <pre id="rawLog"></pre>
+    </details>
+  </section>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script type="text/plain" id="demoLog">E,0,0,0,STATE,CALIBRATE
+T,10,0,0,-1,CALIBRATE,70,2000,0
+T,110,0,0,-7,CALIBRATE,45,2000,0
+T,210,0,0,-13,CALIBRATE,78,2000,0
+T,310,0,0,-19,CALIBRATE,12,2000,0
+T,410,0,0,-25,CALIBRATE,45,2000,0
+T,510,0,0,-31,CALIBRATE,45,2000,0
+T,610,0,0,-37,CALIBRATE,78,2000,0
+T,710,0,0,-37,CALIBRATE,70,2000,0
+T,810,0,0,-31,CALIBRATE,78,2000,0
+T,910,0,0,-25,CALIBRATE,70,2000,0
+T,1010,0,0,-19,CALIBRATE,78,2000,0
+T,1110,0,0,-13,CALIBRATE,78,2000,0
+T,1210,0,0,-7,CALIBRATE,15,2000,0
+T,1310,0,0,-1,CALIBRATE,15,2000,0
+T,1410,0,0,5,CALIBRATE,15,2000,0
+T,1510,0,0,11,CALIBRATE,12,2000,0
+T,1610,0,0,17,CALIBRATE,45,2000,0
+T,1710,0,0,23,CALIBRATE,78,2000,0
+T,1810,0,0,29,CALIBRATE,12,2000,0
+T,1910,0,0,35,CALIBRATE,12,2000,0
+T,2010,0,0,39,CALIBRATE,12,2000,0
+T,2110,0,0,33,CALIBRATE,70,2000,0
+T,2210,0,0,27,CALIBRATE,45,2000,0
+T,2310,0,0,21,CALIBRATE,15,2000,0
+T,2410,0,0,15,CALIBRATE,15,2000,0
+T,2510,0,0,8,CALIBRATE,15,2000,0
+T,2610,0,0,2,CALIBRATE,78,2000,0
+E,2650,0,0,CAL,9,82
+E,2650,0,0,START,150,KIRI-LURUS-KANAN,KIRI
+E,2650,0,0,STATE,FOLLOW_LINE
+T,2710,9,0,0,FOLLOW_LINE,37,442,128
+T,2810,24,1,0,FOLLOW_LINE,43,427,112
+T,2910,39,1,0,FOLLOW_LINE,53,412,128
+T,3010,54,-0,0,FOLLOW_LINE,51,397,144
+T,3110,69,-1,0,FOLLOW_LINE,42,382,126
+T,3210,84,-2,0,FOLLOW_LINE,39,367,148
+T,3310,99,-3,0,FOLLOW_LINE,37,352,141
+T,3410,114,-3,0,FOLLOW_LINE,45,337,143
+T,3510,129,-3,0,FOLLOW_LINE,46,322,146
+T,3610,144,-2,0,FOLLOW_LINE,52,307,127
+T,3710,159,-1,0,FOLLOW_LINE,53,292,140
+T,3810,174,0,0,FOLLOW_LINE,43,277,148
+T,3910,189,1,0,FOLLOW_LINE,36,262,143
+T,4010,204,1,0,FOLLOW_LINE,48,247,141
+T,4110,219,0,0,FOLLOW_LINE,37,232,135
+T,4210,234,-1,0,FOLLOW_LINE,38,217,143
+T,4310,249,-2,0,FOLLOW_LINE,40,202,148
+T,4410,264,-3,0,FOLLOW_LINE,51,187,143
+T,4510,279,-3,0,FOLLOW_LINE,36,172,142
+T,4610,294,-3,0,FOLLOW_LINE,40,157,139
+T,4710,309,-2,0,FOLLOW_LINE,41,142,50
+T,4810,324,-1,0,FOLLOW_LINE,43,127,50
+T,4910,339,-0,0,FOLLOW_LINE,43,112,50
+T,5010,354,1,0,FOLLOW_LINE,50,97,50
+T,5110,369,1,0,FOLLOW_LINE,40,82,50
+E,5180,379,1,OBSTACLE,68
+[  5.18s][FOLLOW_LINE] >>> OBSTACLE di depan | jarak: 68 mm
+E,5180,379,1,STATE,NODE
+E,5180,379,1,NODE,1,obstacle
+E,5180,379,1,STATE,SCAN
+T,5210,379,1,-2,SCAN,20,2000,0
+T,5310,379,1,-10,SCAN,20,2000,0
+T,5410,379,1,-18,SCAN,20,2000,0
+T,5510,379,1,-26,SCAN,20,2000,0
+T,5610,379,1,-34,SCAN,20,2000,0
+T,5710,379,1,-42,SCAN,20,2000,0
+T,5810,379,1,-50,SCAN,20,2000,0
+T,5910,379,1,-58,SCAN,20,2000,0
+T,6010,379,1,-66,SCAN,20,2000,0
+T,6110,379,1,-74,SCAN,20,2000,0
+T,6210,379,1,-82,SCAN,20,2000,0
+T,6310,379,1,-90,SCAN,20,2000,0
+E,6330,379,1,SCAN,KIRI,2000,2000,2000
+E,6330,379,1,PILIH,KIRI,scan
+T,6410,379,-9,-92,SCAN,15,2000,120
+E,6490,378,-19,STATE,FOLLOW_LINE
+T,6510,378,-22,-92,FOLLOW_LINE,36,2000,143
+T,6610,377,-37,-92,FOLLOW_LINE,49,2000,139
+T,6710,376,-52,-92,FOLLOW_LINE,37,2000,134
+T,6810,375,-67,-92,FOLLOW_LINE,48,2000,139
+T,6910,375,-82,-92,FOLLOW_LINE,44,2000,147
+T,7010,375,-97,-92,FOLLOW_LINE,53,2000,139
+T,7110,375,-112,-92,FOLLOW_LINE,44,2000,149
+T,7210,376,-127,-92,FOLLOW_LINE,52,2000,146
+T,7310,375,-142,-92,FOLLOW_LINE,36,2000,139
+T,7410,375,-157,-92,FOLLOW_LINE,51,2000,124
+T,7510,374,-172,-92,FOLLOW_LINE,47,2000,126
+T,7610,373,-187,-92,FOLLOW_LINE,47,2000,138
+T,7710,371,-202,-92,FOLLOW_LINE,53,2000,144
+T,7810,370,-217,-92,FOLLOW_LINE,49,2000,122
+T,7910,369,-232,-92,FOLLOW_LINE,47,2000,138
+T,8010,369,-247,-92,FOLLOW_LINE,36,2000,148
+T,8110,369,-262,-92,FOLLOW_LINE,40,2000,125
+T,8210,369,-277,-92,FOLLOW_LINE,36,2000,132
+T,8310,370,-292,-92,FOLLOW_LINE,37,2000,148
+T,8410,370,-307,-92,FOLLOW_LINE,51,2000,129
+E,8490,369,-319,NODE,2,persimpangan
+E,8490,369,-319,STATE,NODE
+T,8510,369,-322,-92,NODE,12,2000,120
+T,8610,369,-333,-92,NODE,12,2000,120
+T,8710,368,-345,-92,NODE,12,2000,120
+T,8810,368,-357,-92,NODE,12,2000,120
+T,8910,367,-369,-92,NODE,12,2000,120
+E,8990,367,-379,STATE,SCAN
+T,9010,367,-379,-94,SCAN,12,2000,0
+T,9110,367,-379,-102,SCAN,70,2000,0
+T,9210,367,-379,-110,SCAN,70,2000,0
+T,9310,367,-379,-118,SCAN,45,2000,0
+T,9410,367,-379,-126,SCAN,15,2000,0
+T,9510,367,-379,-134,SCAN,70,2000,0
+T,9610,367,-379,-142,SCAN,70,2000,0
+T,9710,367,-379,-150,SCAN,12,2000,0
+T,9810,367,-379,-158,SCAN,12,2000,0
+T,9910,367,-379,-166,SCAN,78,2000,0
+T,10010,367,-379,-174,SCAN,12,2000,0
+T,10110,367,-379,-182,SCAN,12,2000,0
+T,10210,367,-379,-190,SCAN,12,2000,0
+T,10310,367,-379,-198,SCAN,12,2000,0
+T,10410,367,-379,-198,SCAN,12,2000,0
+T,10510,367,-379,-190,SCAN,45,2000,0
+T,10610,367,-379,-182,SCAN,15,2000,0
+T,10710,367,-379,-174,SCAN,45,2000,0
+T,10810,367,-379,-166,SCAN,70,2000,0
+T,10910,367,-379,-158,SCAN,45,2000,0
+T,11010,367,-379,-150,SCAN,12,2000,0
+T,11110,367,-379,-142,SCAN,70,2000,0
+T,11210,367,-379,-134,SCAN,45,2000,0
+T,11310,367,-379,-126,SCAN,15,2000,0
+T,11410,367,-379,-118,SCAN,15,2000,0
+T,11510,367,-379,-110,SCAN,12,2000,0
+T,11610,367,-379,-102,SCAN,45,2000,0
+T,11710,367,-379,-94,SCAN,70,2000,0
+T,11810,367,-379,-86,SCAN,15,2000,0
+T,11910,367,-379,-78,SCAN,78,2000,0
+T,12010,367,-379,-70,SCAN,45,2000,0
+T,12110,367,-379,-62,SCAN,12,2000,0
+T,12210,367,-379,-54,SCAN,12,2000,0
+T,12310,367,-379,-46,SCAN,15,2000,0
+T,12410,367,-379,-38,SCAN,70,2000,0
+T,12510,367,-379,-30,SCAN,78,2000,0
+T,12610,367,-379,-22,SCAN,78,2000,0
+T,12710,367,-379,-14,SCAN,78,2000,0
+T,12810,367,-379,-6,SCAN,15,2000,0
+T,12910,367,-379,2,SCAN,15,2000,0
+T,13010,367,-379,10,SCAN,12,2000,0
+T,13110,367,-379,18,SCAN,70,2000,0
+E,13110,367,-379,SCAN,KANAN,2000,2000,2000
+E,13110,367,-379,PILIH,KANAN,scan
+T,13210,367,-379,6,SCAN,45,2000,0
+E,13270,367,-379,STATE,FOLLOW_LINE
+T,13310,373,-380,-2,FOLLOW_LINE,47,2000,145
+T,13410,388,-381,-2,FOLLOW_LINE,45,2000,134
+T,13510,403,-382,-2,FOLLOW_LINE,41,2000,144
+T,13610,418,-383,-2,FOLLOW_LINE,52,2000,126
+T,13710,433,-383,-2,FOLLOW_LINE,36,2000,129
+T,13810,448,-382,-2,FOLLOW_LINE,38,2000,131
+T,13910,463,-382,-2,FOLLOW_LINE,37,2000,135
+T,14010,478,-382,-2,FOLLOW_LINE,36,2000,145
+T,14110,493,-382,-2,FOLLOW_LINE,47,2000,129
+T,14210,508,-382,-2,FOLLOW_LINE,43,2000,136
+T,14310,523,-384,-2,FOLLOW_LINE,52,2000,124
+T,14410,538,-385,-2,FOLLOW_LINE,37,2000,121
+T,14510,553,-387,-2,FOLLOW_LINE,42,2000,134
+T,14610,568,-388,-2,FOLLOW_LINE,40,2000,113
+T,14710,583,-389,-2,FOLLOW_LINE,53,2000,144
+T,14810,598,-389,-2,FOLLOW_LINE,53,2000,149
+T,14910,613,-389,-2,FOLLOW_LINE,52,2000,114
+E,15000,626,-388,NODE,3,persimpangan
+E,15000,626,-388,STATE,NODE
+T,15010,627,-388,-2,NODE,14,2000,120
+T,15110,639,-389,-2,NODE,14,2000,120
+T,15210,651,-389,-2,NODE,14,2000,120
+T,15310,663,-389,-2,NODE,14,2000,120
+T,15410,675,-390,-2,NODE,14,2000,120
+E,15500,686,-390,PILIH,LURUS,langsung
+E,15500,686,-390,STATE,FOLLOW_LINE
+T,15510,688,-390,-2,FOLLOW_LINE,40,250,146
+T,15610,703,-392,-2,FOLLOW_LINE,50,235,144
+T,15710,717,-393,-2,FOLLOW_LINE,43,220,139
+T,15810,732,-394,-2,FOLLOW_LINE,53,205,130
+T,15910,747,-394,-2,FOLLOW_LINE,53,190,148
+T,16010,762,-394,-2,FOLLOW_LINE,41,175,141
+T,16110,777,-394,-2,FOLLOW_LINE,36,160,142
+T,16210,792,-393,-2,FOLLOW_LINE,42,145,50
+T,16310,807,-393,-2,FOLLOW_LINE,46,130,50
+T,16410,822,-394,-2,FOLLOW_LINE,38,115,50
+T,16510,837,-394,-2,FOLLOW_LINE,43,100,50
+T,16610,852,-396,-2,FOLLOW_LINE,46,85,50
+E,16700,866,-397,OBSTACLE,66
+E,16700,866,-397,STATE,NODE
+E,16700,866,-397,NODE,4,obstacle
+E,16700,866,-397,STATE,SCAN
+T,16710,866,-397,-3,SCAN,15,2000,0
+T,16810,866,-397,-11,SCAN,15,2000,0
+T,16910,866,-397,-19,SCAN,70,2000,0
+T,17010,866,-397,-27,SCAN,15,2000,0
+T,17110,866,-397,-35,SCAN,12,2000,0
+T,17210,866,-397,-43,SCAN,12,2000,0
+T,17310,866,-397,-51,SCAN,12,2000,0
+T,17410,866,-397,-59,SCAN,45,2000,0
+T,17510,866,-397,-67,SCAN,45,2000,0
+T,17610,866,-397,-75,SCAN,70,2000,0
+T,17710,866,-397,-83,SCAN,70,2000,0
+T,17810,866,-397,-91,SCAN,15,2000,0
+T,17910,866,-397,-99,SCAN,45,2000,0
+T,18010,866,-397,-107,SCAN,15,2000,0
+T,18110,866,-397,-109,SCAN,45,2000,0
+T,18210,866,-397,-101,SCAN,78,2000,0
+T,18310,866,-397,-93,SCAN,45,2000,0
+T,18410,866,-397,-85,SCAN,45,2000,0
+T,18510,866,-397,-77,SCAN,78,2000,0
+T,18610,866,-397,-69,SCAN,12,2000,0
+T,18710,866,-397,-61,SCAN,12,2000,0
+T,18810,866,-397,-53,SCAN,78,2000,0
+T,18910,866,-397,-45,SCAN,45,2000,0
+T,19010,866,-397,-37,SCAN,70,2000,0
+T,19110,866,-397,-29,SCAN,12,2000,0
+T,19210,866,-397,-21,SCAN,45,2000,0
+T,19310,866,-397,-13,SCAN,78,2000,0
+T,19410,866,-397,-5,SCAN,70,2000,0
+T,19510,866,-397,3,SCAN,45,2000,0
+T,19610,866,-397,11,SCAN,78,2000,0
+T,19710,866,-397,19,SCAN,45,2000,0
+T,19810,866,-397,27,SCAN,12,2000,0
+T,19910,866,-397,35,SCAN,78,2000,0
+T,20010,866,-397,43,SCAN,70,2000,0
+T,20110,866,-397,51,SCAN,70,2000,0
+T,20210,866,-397,59,SCAN,78,2000,0
+T,20310,866,-397,67,SCAN,70,2000,0
+T,20410,866,-397,75,SCAN,12,2000,0
+T,20510,866,-397,83,SCAN,45,2000,0
+T,20610,866,-397,91,SCAN,45,2000,0
+T,20710,866,-397,99,SCAN,45,2000,0
+T,20810,866,-397,107,SCAN,12,2000,0
+E,20820,866,-397,SCAN,LURUS,2000,64,2000
+T,20910,866,-397,97,SCAN,12,2000,0
+T,21010,866,-397,85,SCAN,70,2000,0
+T,21110,866,-397,73,SCAN,70,2000,0
+T,21210,866,-397,61,SCAN,78,2000,0
+T,21310,866,-397,49,SCAN,70,2000,0
+T,21410,866,-397,37,SCAN,45,2000,0
+T,21510,866,-397,25,SCAN,15,2000,0
+T,21610,866,-397,13,SCAN,12,2000,0
+T,21710,866,-397,0,SCAN,70,2000,0
+E,21730,866,-397,AVOID,KIRI
+E,21730,866,-397,STATE,AVOID
+T,21810,866,-397,-12,AVOID,78,2000,0
+T,21910,866,-397,-24,AVOID,78,2000,0
+T,22010,866,-397,-36,AVOID,78,2000,0
+T,22110,866,-397,-48,AVOID,78,2000,0
+E,22140,866,-397,STATE,FIND_LINE
+T,22210,871,-404,-52,FIND_LINE,80,2000,120
+T,22310,878,-413,-52,FIND_LINE,80,2000,120
+T,22410,886,-423,-52,FIND_LINE,80,2000,120
+T,22510,893,-432,-52,FIND_LINE,80,2000,120
+T,22610,901,-442,-52,FIND_LINE,80,2000,120
+T,22710,908,-451,-52,FIND_LINE,80,2000,120
+T,22810,915,-460,-52,FIND_LINE,80,2000,120
+T,22910,923,-470,-52,FIND_LINE,80,2000,120
+T,23010,930,-479,-52,FIND_LINE,80,2000,120
+T,23110,937,-489,-52,FIND_LINE,80,2000,120
+T,23210,940,-492,-44,FIND_LINE,78,2000,0
+T,23310,940,-492,-32,FIND_LINE,78,2000,0
+T,23410,940,-492,-20,FIND_LINE,78,2000,0
+T,23510,940,-492,-8,FIND_LINE,78,2000,0
+T,23610,940,-492,4,FIND_LINE,78,2000,0
+T,23710,940,-492,16,FIND_LINE,78,2000,0
+T,23810,940,-492,28,FIND_LINE,78,2000,0
+T,23910,942,-490,38,FIND_LINE,80,2000,120
+T,24010,951,-483,38,FIND_LINE,80,2000,120
+T,24110,960,-475,38,FIND_LINE,80,2000,120
+T,24210,970,-468,38,FIND_LINE,80,2000,120
+T,24310,979,-461,38,FIND_LINE,80,2000,120
+T,24410,989,-453,38,FIND_LINE,80,2000,120
+T,24510,998,-446,38,FIND_LINE,80,2000,120
+T,24610,1008,-439,38,FIND_LINE,80,2000,120
+T,24710,1017,-431,38,FIND_LINE,80,2000,120
+T,24810,1027,-424,38,FIND_LINE,80,2000,120
+T,24910,1034,-418,36,FIND_LINE,40,2000,0
+T,25010,1034,-418,23,FIND_LINE,40,2000,0
+T,25110,1034,-418,11,FIND_LINE,40,2000,0
+T,25210,1034,-418,-1,FIND_LINE,40,2000,0
+E,25220,1034,-418,STATE,FOLLOW_LINE
+T,25310,1048,-418,-2,FOLLOW_LINE,52,2000,148
+T,25410,1063,-418,-2,FOLLOW_LINE,37,2000,149
+T,25510,1078,-418,-2,FOLLOW_LINE,42,2000,140
+T,25610,1093,-419,-2,FOLLOW_LINE,37,2000,134
+T,25710,1108,-421,-2,FOLLOW_LINE,41,2000,114
+T,25810,1123,-422,-2,FOLLOW_LINE,43,2000,142
+T,25910,1137,-424,-2,FOLLOW_LINE,45,2000,141
+T,26010,1152,-424,-2,FOLLOW_LINE,40,2000,139
+T,26110,1167,-423,12,FOLLOW_LINE,45,2000,133
+T,26210,1181,-418,27,FOLLOW_LINE,45,2000,138
+T,26310,1194,-410,42,FOLLOW_LINE,47,2000,135
+T,26410,1203,-398,57,FOLLOW_LINE,47,2000,143
+T,26510,1209,-384,63,FOLLOW_LINE,48,2000,146
+T,26610,1218,-372,48,FOLLOW_LINE,50,2000,134
+T,26710,1229,-362,33,FOLLOW_LINE,40,2000,147
+T,26810,1243,-356,18,FOLLOW_LINE,51,2000,149
+T,26910,1257,-354,3,FOLLOW_LINE,49,2000,131
+T,27010,1272,-355,-13,FOLLOW_LINE,36,2000,121
+T,27110,1286,-360,-28,FOLLOW_LINE,48,2000,127
+T,27210,1299,-369,-43,FOLLOW_LINE,51,2000,144
+T,27310,1309,-380,-58,FOLLOW_LINE,53,2000,137
+T,27410,1315,-394,-70,FOLLOW_LINE,50,2000,135
+T,27510,1322,-407,-55,FOLLOW_LINE,53,2000,147
+T,27610,1333,-418,-40,FOLLOW_LINE,40,2000,133
+T,27710,1345,-426,-25,FOLLOW_LINE,41,2000,129
+T,27810,1359,-431,-10,FOLLOW_LINE,53,2000,142
+T,27910,1374,-432,6,FOLLOW_LINE,47,2000,139
+T,28010,1389,-429,21,FOLLOW_LINE,38,2000,131
+T,28110,1402,-422,36,FOLLOW_LINE,47,2000,148
+T,28210,1414,-412,51,FOLLOW_LINE,41,2000,133
+T,28310,1421,-400,66,FOLLOW_LINE,36,2000,132
+T,28410,1428,-386,54,FOLLOW_LINE,41,2000,147
+T,28510,1438,-375,39,FOLLOW_LINE,41,2000,149
+T,28610,1450,-367,24,FOLLOW_LINE,44,2000,128
+T,28710,1465,-362,9,FOLLOW_LINE,43,2000,144
+T,28810,1479,-361,-7,FOLLOW_LINE,39,2000,138
+T,28910,1494,-365,-22,FOLLOW_LINE,52,2000,146
+T,29010,1507,-372,-37,FOLLOW_LINE,48,2000,149
+T,29110,1517,-383,-52,FOLLOW_LINE,52,2000,122
+T,29210,1525,-396,-67,FOLLOW_LINE,44,2000,118
+T,29310,1530,-410,-61,FOLLOW_LINE,47,2000,149
+T,29410,1539,-422,-46,FOLLOW_LINE,36,2000,150
+T,29510,1550,-432,-31,FOLLOW_LINE,51,2000,140
+T,29610,1564,-437,-16,FOLLOW_LINE,37,2000,120
+E,29700,1577,-439,LOST
+E,29700,1577,-439,STATE,SEARCH_LINE
+T,29710,1577,-439,-1,SEARCH_LINE,80,2000,0
+T,29810,1577,-439,11,SEARCH_LINE,80,2000,0
+T,29910,1577,-439,23,SEARCH_LINE,80,2000,0
+T,30010,1577,-439,36,SEARCH_LINE,80,2000,0
+T,30110,1577,-439,28,SEARCH_LINE,80,2000,0
+T,30210,1577,-439,16,SEARCH_LINE,80,2000,0
+T,30310,1577,-439,4,SEARCH_LINE,80,2000,0
+T,30410,1577,-439,-8,SEARCH_LINE,80,2000,0
+T,30510,1577,-439,-20,SEARCH_LINE,80,2000,0
+T,30610,1577,-439,-32,SEARCH_LINE,80,2000,0
+T,30710,1577,-439,-40,SEARCH_LINE,20,2000,0
+T,30810,1577,-439,-27,SEARCH_LINE,20,2000,0
+T,30910,1577,-439,-15,SEARCH_LINE,20,2000,0
+E,30920,1577,-439,STATE,FOLLOW_LINE
+T,31010,1591,-441,-8,FOLLOW_LINE,41,2000,141
+T,31110,1606,-442,-1,FOLLOW_LINE,40,2000,124
+T,31210,1621,-442,6,FOLLOW_LINE,52,2000,136
+T,31310,1636,-441,12,FOLLOW_LINE,37,2000,150
+T,31410,1650,-438,19,FOLLOW_LINE,40,2000,141
+T,31510,1664,-433,26,FOLLOW_LINE,50,2000,139
+T,31610,1678,-426,33,FOLLOW_LINE,50,2000,144
+T,31710,1690,-417,39,FOLLOW_LINE,40,2000,140
+T,31810,1701,-407,46,FOLLOW_LINE,47,2000,149
+T,31910,1710,-395,53,FOLLOW_LINE,49,2000,143
+T,32010,1717,-382,60,FOLLOW_LINE,42,2000,139
+T,32110,1723,-368,67,FOLLOW_LINE,42,2000,135
+T,32210,1728,-354,73,FOLLOW_LINE,44,2000,135
+T,32310,1732,-340,76,FOLLOW_LINE,39,2000,148
+T,32410,1737,-325,76,FOLLOW_LINE,38,2000,127
+T,32510,1741,-311,76,FOLLOW_LINE,48,2000,118
+T,32610,1746,-297,76,FOLLOW_LINE,41,2000,119
+T,32710,1750,-282,76,FOLLOW_LINE,53,2000,134
+T,32810,1754,-268,76,FOLLOW_LINE,42,2000,147
+T,32910,1757,-253,76,FOLLOW_LINE,38,2000,135
+T,33010,1760,-238,76,FOLLOW_LINE,47,2000,139
+T,33110,1763,-224,76,FOLLOW_LINE,53,2000,139
+T,33210,1765,-209,76,FOLLOW_LINE,38,2000,143
+T,33310,1768,-194,76,FOLLOW_LINE,45,2000,128
+T,33410,1772,-180,76,FOLLOW_LINE,42,2000,139
+T,33510,1776,-165,76,FOLLOW_LINE,38,2000,129
+T,33610,1781,-151,76,FOLLOW_LINE,47,2000,137
+T,33710,1785,-137,76,FOLLOW_LINE,45,2000,138
+T,33810,1790,-122,76,FOLLOW_LINE,51,2000,150
+T,33910,1794,-108,76,FOLLOW_LINE,46,2000,147
+T,34010,1797,-93,73,FOLLOW_LINE,45,2000,123
+T,34110,1802,-79,63,FOLLOW_LINE,36,2000,139
+T,34210,1809,-66,54,FOLLOW_LINE,38,2000,140
+T,34310,1818,-54,44,FOLLOW_LINE,45,2000,149
+T,34410,1829,-44,34,FOLLOW_LINE,42,2000,141
+T,34510,1842,-36,25,FOLLOW_LINE,51,2000,130
+T,34610,1856,-31,15,FOLLOW_LINE,44,2000,102
+T,34710,1871,-29,5,FOLLOW_LINE,44,2000,127
+T,34810,1886,-30,-4,FOLLOW_LINE,49,2000,143
+T,34910,1900,-33,-14,FOLLOW_LINE,47,2000,135
+T,35010,1915,-37,-14,FOLLOW_LINE,52,2000,135
+T,35110,1929,-41,-14,FOLLOW_LINE,38,2000,148
+T,35210,1944,-44,-14,FOLLOW_LINE,48,2000,138
+T,35310,1959,-47,-14,FOLLOW_LINE,43,2000,133
+T,35410,1974,-49,-14,FOLLOW_LINE,37,2000,129
+T,35510,1988,-52,-14,FOLLOW_LINE,51,2000,144
+T,35610,2003,-55,-14,FOLLOW_LINE,52,2000,134
+T,35710,2017,-59,-14,FOLLOW_LINE,48,2000,142
+T,35810,2032,-64,-14,FOLLOW_LINE,46,2000,133
+T,35910,2046,-68,-14,FOLLOW_LINE,51,2000,121
+T,36010,2060,-73,-14,FOLLOW_LINE,45,2000,140
+T,36110,2075,-77,-14,FOLLOW_LINE,47,2000,140
+T,36210,2089,-81,-14,FOLLOW_LINE,40,2000,138
+E,36240,2094,-82,STATE,CHECK_FINISH
+T,36310,2102,-84,-14,CHECK_FINISH,82,2000,120
+T,36410,2114,-87,-14,CHECK_FINISH,82,2000,120
+T,36510,2125,-90,-14,CHECK_FINISH,82,2000,120
+T,36610,2137,-93,-14,CHECK_FINISH,82,2000,120
+E,36610,2137,-93,FINISH,36610
+E,36610,2137,-93,STATE,FINISH</script>
+<script>
+(function () {
+  "use strict";
+  const NS = "http://www.w3.org/2000/svg";
+  const $ = (id) => document.getElementById(id);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  const CAT = {
+    follow:  { label: "Ikut garis", color: "--c-follow" },
+    decide:  { label: "Keputusan & scan", color: "--c-decide" },
+    recover: { label: "Menghindar / cari garis", color: "--c-recover" },
+    idle:    { label: "Diam / kalibrasi", color: "--c-idle" },
+  };
+  const STATE_CAT = {
+    FOLLOW_LINE: "follow",
+    NODE: "decide", SCAN: "decide", CHECK_FINISH: "decide", INTERSECTION: "decide",
+    AVOID: "recover", FIND_LINE: "recover", SEARCH_LINE: "recover",
+    CALIBRATE: "idle", INIT: "idle", FINISH: "idle",
+  };
+  const STATE_LABEL = {
+    FOLLOW_LINE: "Ikut garis", NODE: "Titik keputusan", SCAN: "Scan cabang", CHECK_FINISH: "Cek finish",
+    AVOID: "Menghindar", FIND_LINE: "Cari garis lurus", SEARCH_LINE: "Sapu cari garis",
+    CALIBRATE: "Kalibrasi", INIT: "Mulai", FINISH: "Finish", INTERSECTION: "Persimpangan",
+  };
+  const catOf = (s) => STATE_CAT[s] || "idle";
+
+  // ---------- parsing ----------
+  function parseLog(text) {
+    const samples = [], events = [], raw = [];
+    for (let line of text.split(/\r?\n/)) {
+      line = line.trim();
+      if (!line) continue;
+      raw.push(line);
+      const p = line.split(",");
+      if (p[0] === "T" && p.length >= 9) {
+        const s = { t: +p[1], x: +p[2], y: +p[3], h: +p[4], state: p[5], r: +p[6], us: +p[7], spd: +p[8] };
+        if ([s.t, s.x, s.y, s.h].every(Number.isFinite)) samples.push(s);
+      } else if (p[0] === "E" && p.length >= 5) {
+        const e = { t: +p[1], x: +p[2], y: +p[3], kind: p[4], d: p.slice(5) };
+        if (Number.isFinite(e.t)) events.push(e);
+      }
+    }
+    samples.sort((a, b) => a.t - b.t);
+    events.sort((a, b) => a.t - b.t);
+    return { samples, events, raw };
+  }
+
+  function analyze(run) {
+    const { samples, events } = run;
+    const tEnd = Math.max(samples.length ? samples[samples.length - 1].t : 0, events.length ? events[events.length - 1].t : 0);
+    const tStartEv = events.find((e) => e.kind === "START");
+    const tStart = tStartEv ? tStartEv.t : 0;
+    let dist = 0;
+    for (let i = 1; i < samples.length; i++) dist += Math.hypot(samples[i].x - samples[i - 1].x, samples[i].y - samples[i - 1].y);
+    const followSpeeds = samples.filter((s) => s.state === "FOLLOW_LINE" && s.spd > 0).map((s) => s.spd);
+    const avgSpd = followSpeeds.length ? followSpeeds.reduce((a, b) => a + b, 0) / followSpeeds.length : 0;
+    const count = (k) => events.filter((e) => e.kind === k).length;
+    const fin = events.find((e) => e.kind === "FINISH");
+    const cal = events.find((e) => e.kind === "CAL");
+    const start = events.find((e) => e.kind === "START");
+
+    // durations per state from STATE events (fallback: samples)
+    const stateEvs = events.filter((e) => e.kind === "STATE");
+    const dur = {};
+    const seq = stateEvs.length ? stateEvs.map((e) => ({ t: e.t, s: e.d[0] })) : samples.map((s) => ({ t: s.t, s: s.state }));
+    for (let i = 0; i < seq.length; i++) {
+      const next = i + 1 < seq.length ? seq[i + 1].t : tEnd;
+      dur[seq[i].s] = (dur[seq[i].s] || 0) + Math.max(0, next - seq[i].t);
+    }
+
+    // nodes
+    const nodes = [];
+    let cur = null;
+    for (const e of events) {
+      if (e.kind === "NODE") { cur = { n: e.d[0], t: e.t, cause: e.d[1] || "", branches: null, dist: null, choice: null, how: null }; nodes.push(cur); }
+      else if (!cur) continue;
+      else if (e.kind === "SCAN") { cur.branches = e.d[0]; cur.dist = e.d.slice(1, 4).map(Number); }
+      else if (e.kind === "PILIH" && !cur.choice) { cur.choice = e.d[0]; cur.how = e.d[1] || ""; }
+      else if (e.kind === "AVOID" && !cur.choice) { cur.choice = "Hindari " + e.d[0]; cur.how = "avoid"; }
+      else if (e.kind === "UTURN" && !cur.choice) { cur.choice = "Putar balik"; cur.how = "uturn"; }
+    }
+    return { tEnd, tStart, dist, avgSpd, obstacles: count("OBSTACLE"), lost: count("LOST"), nodes, fin, cal, start, dur };
+  }
+
+  // ---------- state ----------
+  let run = null, info = null, curT = 0, playing = false, speed = 2, lastFrame = 0;
+  let runSource = "demo";   // demo | paste | live
+  let mapGeo = null;
+
+  function fmtS(ms) { return (ms / 1000).toFixed(1); }
+  function fmtDist(v) { return v >= 2000 ? "> 2 m" : Math.round(v) + " mm"; }
+
+  function sampleAt(t) {
+    const S = run.samples;
+    if (!S.length) return null;
+    if (t <= S[0].t) return S[0];
+    if (t >= S[S.length - 1].t) return S[S.length - 1];
+    let lo = 0, hi = S.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (S[m].t <= t) lo = m; else hi = m; }
+    const a = S[lo], b = S[hi], f = (t - a.t) / Math.max(1, b.t - a.t);
+    let dh = b.h - a.h;
+    return { t, x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, h: a.h + dh * f, state: a.state, r: a.r, us: a.us, spd: a.spd };
+  }
+
+  // ---------- stats ----------
+  function renderStats() {
+    const i = info;
+    const tRun = Math.max(0, i.tEnd - i.tStart);
+    const res = i.fin
+      ? `<span class="v result-good">Finish</span><span class="s">dalam ${fmtS(tRun)} s setelah start</span>`
+      : `<span class="v">Belum</span><span class="s">tidak ada kejadian FINISH</span>`;
+    const cells = [
+      ["Hasil", res, true],
+      ["Waktu jalan", `${fmtS(tRun)}<small>s</small>`, false, i.cal ? `kalibrasi ${fmtS(i.tStart)} s` : ""],
+      ["Jarak tempuh", `${(i.dist / 1000).toFixed(2)}<small>m</small>`, false, "dari odometri roda"],
+      ["Rata-rata ikut garis", `${Math.round(i.avgSpd)}<small>mm/s</small>`, false, i.start ? `batas ${i.start.d[0]} mm/s` : ""],
+      ["Titik keputusan", `${i.nodes.length}`, false, `${i.nodes.filter((n) => n.how === "scan").length} lewat scan`],
+      ["Obstacle", `${i.obstacles}`, false, "terdeteksi di depan"],
+      ["Garis hilang", `${i.lost}`, false, "kali mencari garis"],
+    ];
+    $("stats").innerHTML = cells.map(([k, v, raw, s]) =>
+      `<div class="stat"><span class="k">${k}</span>${raw ? v : `<span class="v">${v}</span>`}${s ? `<span class="s">${s}</span>` : ""}</div>`).join("");
+  }
+
+  // ---------- map ----------
+  function el(tag, attrs, parent) {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+
+  function renderLegend() {
+    const used = new Set(run.samples.map((s) => catOf(s.state)));
+    $("legend").innerHTML = Object.entries(CAT).filter(([k]) => used.has(k)).map(([k, c]) =>
+      `<span><i style="background:var(${c.color})"></i>${c.label}</span>`).join("") +
+      `<span><i style="background:var(--critical);height:8px;width:8px;border-radius:2px"></i>Obstacle</span>` +
+      `<span><i style="background:var(--good);height:8px;width:8px;border-radius:50%"></i>Finish</span>`;
+  }
+
+  function renderMap() {
+    const svg = $("map");
+    svg.innerHTML = "";
+    const S = run.samples;
+    if (!S.length) { mapGeo = null; return; }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const s of S) { minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x); minY = Math.min(minY, s.y); maxY = Math.max(maxY, s.y); }
+    for (const e of run.events) {
+      let ex = e.x, ey = e.y;
+      if (e.kind === "OBSTACLE") {           // include the obstacle marker drawn ahead of the robot
+        const s = sampleAt(e.t), hr = (s ? s.h : 0) * Math.PI / 180, dd = Math.min(+e.d[0] || 70, 400) + 40;
+        ex = e.x + Math.cos(hr) * dd; ey = e.y + Math.sin(hr) * dd;
+      }
+      minX = Math.min(minX, e.x, ex); maxX = Math.max(maxX, e.x, ex); minY = Math.min(minY, e.y, ey); maxY = Math.max(maxY, e.y, ey);
+    }
+    let w = maxX - minX, h = maxY - minY;
+    const pad = Math.max(60, Math.max(w, h) * 0.06);
+    minX -= pad; minY -= pad; w += pad * 2; h += pad * 2;
+    // follow the route's own shape, within 1.2 : 1 .. 2.4 : 1
+    const aspect = Math.min(2.4, Math.max(1.2, w / h));
+    svg.style.aspectRatio = aspect.toFixed(3);
+    if (w / h > aspect) { const nh = w / aspect; minY -= (nh - h) / 2; h = nh; } else { const nw = h * aspect; minX -= (nw - w) / 2; w = nw; }
+    svg.setAttribute("viewBox", `${minX} ${minY} ${w} ${h}`);
+    const unit = w / 1000; // stroke scale: 1 unit ~ 1px at 1000px width
+    mapGeo = { minX, minY, w, h, unit };
+
+    // grid (10 mm minor when small, 50/100 mm otherwise)
+    const minor = w > 3000 ? 100 : 50, major = minor * 2;
+    const g = el("g", {}, svg);
+    for (let gx = Math.floor(minX / minor) * minor; gx <= minX + w; gx += minor)
+      el("line", { x1: gx, y1: minY, x2: gx, y2: minY + h, stroke: css(gx % major === 0 ? "--grid-major" : "--grid-minor"), "stroke-width": unit }, g);
+    for (let gy = Math.floor(minY / minor) * minor; gy <= minY + h; gy += minor)
+      el("line", { x1: minX, y1: gy, x2: minX + w, y2: gy, stroke: css(gy % major === 0 ? "--grid-major" : "--grid-minor"), "stroke-width": unit }, g);
+
+    // scale bar: 100 mm (or 200 mm for big maps)
+    const scaleMm = w > 3000 ? 500 : w > 1500 ? 200 : 100;
+    const box = svg.getBoundingClientRect();
+    const pxPerMm = (box.width || 800) / w;
+    $("scaleBar").style.width = Math.max(20, scaleMm * pxPerMm) + "px";
+    $("scaleLabel").textContent = scaleMm + " mm";
+
+    // path runs by category: faint full route + bright traversed route
+    const runs = [];
+    let curRun = null;
+    for (const s of S) {
+      const c = catOf(s.state);
+      if (!curRun || curRun.cat !== c) { const prev = curRun ? curRun.pts[curRun.pts.length - 1] : null; curRun = { cat: c, pts: prev ? [prev] : [] }; runs.push(curRun); }
+      curRun.pts.push(s);
+    }
+    const ghost = el("g", { opacity: 0.28 }, svg);
+    for (const r of runs) {
+      el("polyline", { points: r.pts.map((p) => `${p.x},${p.y}`).join(" "), fill: "none", stroke: css(CAT[r.cat].color), "stroke-width": 3 * unit, "stroke-linejoin": "round", "stroke-linecap": "round" }, ghost);
+    }
+    const live = el("g", { id: "livePath" }, svg);
+    mapGeo.runs = runs;
+    mapGeo.live = live;
+
+    // markers
+    const mk = el("g", {}, svg);
+    const r0 = 9 * unit;
+    const s0 = S[0];
+    const start = el("g", { class: "mk", "data-tip": `Start · (0, 0)`, "data-t": s0.t }, mk);
+    el("circle", { cx: s0.x, cy: s0.y, r: r0, fill: css("--panel"), stroke: css("--ink"), "stroke-width": 2 * unit }, start);
+    el("text", { x: s0.x, y: s0.y + 3.5 * unit, "text-anchor": "middle", "font-size": 10 * unit, "font-weight": 700, fill: css("--ink"), "font-family": "IBM Plex Mono, monospace" }, start).textContent = "S";
+
+    for (const e of run.events) {
+      let g2 = null;
+      if (e.kind === "NODE") {
+        g2 = el("g", { class: "mk", "data-t": e.t, "data-tip": `Titik keputusan #${e.d[0]} · ${e.d[1] || ""} · ${fmtS(e.t)} s` }, mk);
+        el("circle", { cx: e.x, cy: e.y, r: r0, fill: css("--c-decide"), stroke: css("--panel"), "stroke-width": 2 * unit }, g2);
+        el("text", { x: e.x, y: e.y + 3.5 * unit, "text-anchor": "middle", "font-size": 10 * unit, "font-weight": 700, fill: "#fff", "font-family": "IBM Plex Mono, monospace" }, g2).textContent = e.d[0];
+      } else if (e.kind === "OBSTACLE") {
+        const s = sampleAt(e.t);
+        const hr = (s ? s.h : 0) * Math.PI / 180;
+        const dd = Math.min(+e.d[0] || 70, 400);
+        const ox = e.x + Math.cos(hr) * (dd + 40), oy = e.y + Math.sin(hr) * (dd + 40);
+        g2 = el("g", { class: "mk", "data-t": e.t, "data-tip": `Obstacle ${e.d[0]} mm di depan · ${fmtS(e.t)} s` }, mk);
+        el("line", { x1: e.x, y1: e.y, x2: ox, y2: oy, stroke: css("--critical"), "stroke-width": 1.5 * unit, "stroke-dasharray": `${4 * unit} ${4 * unit}` }, g2);
+        el("rect", { x: ox - 12 * unit, y: oy - 12 * unit, width: 24 * unit, height: 24 * unit, rx: 4 * unit, fill: css("--critical"), stroke: css("--panel"), "stroke-width": 2 * unit }, g2);
+        el("text", { x: ox, y: oy + 4.5 * unit, "text-anchor": "middle", "font-size": 13 * unit, "font-weight": 700, fill: "#fff", "font-family": "IBM Plex Mono, monospace" }, g2).textContent = "!";
+      } else if (e.kind === "LOST") {
+        g2 = el("g", { class: "mk", "data-t": e.t, "data-tip": `Garis hilang · ${fmtS(e.t)} s` }, mk);
+        el("circle", { cx: e.x, cy: e.y, r: r0 * 0.85, fill: css("--panel"), stroke: css("--c-recover"), "stroke-width": 2.5 * unit }, g2);
+        el("text", { x: e.x, y: e.y + 3.5 * unit, "text-anchor": "middle", "font-size": 10 * unit, "font-weight": 700, fill: css("--ink"), "font-family": "IBM Plex Mono, monospace" }, g2).textContent = "?";
+      } else if (e.kind === "FINISH") {
+        g2 = el("g", { class: "mk", "data-t": e.t, "data-tip": `Finish · ${fmtS(e.t)} s` }, mk);
+        el("line", { x1: e.x, y1: e.y, x2: e.x, y2: e.y - 34 * unit, stroke: css("--ink"), "stroke-width": 2 * unit }, g2);
+        el("path", { d: `M ${e.x} ${e.y - 34 * unit} L ${e.x + 22 * unit} ${e.y - 27 * unit} L ${e.x} ${e.y - 20 * unit} Z`, fill: css("--good") }, g2);
+        el("circle", { cx: e.x, cy: e.y, r: 4 * unit, fill: css("--good") }, g2);
+      }
+      if (g2) g2.style.cursor = "pointer";
+    }
+
+    // robot glyph
+    const robot = el("g", { id: "robot" }, svg);
+    const rb = 14 * unit;
+    el("rect", { x: -rb, y: -rb * 0.8, width: rb * 2, height: rb * 1.6, rx: 4 * unit, fill: css("--ink"), stroke: css("--panel"), "stroke-width": 2 * unit }, robot);
+    el("path", { d: `M ${rb * 0.2} ${-rb * 0.45} L ${rb * 0.9} 0 L ${rb * 0.2} ${rb * 0.45} Z`, fill: css("--panel") }, robot);
+    mapGeo.robot = robot;
+
+    // marker interactions
+    mk.querySelectorAll(".mk").forEach((m) => {
+      m.addEventListener("mouseenter", (ev) => showTip(ev, m.getAttribute("data-tip")));
+      m.addEventListener("mousemove", (ev) => moveTip(ev));
+      m.addEventListener("mouseleave", hideTip);
+      m.addEventListener("click", () => seek(+m.getAttribute("data-t")));
+    });
+  }
+
+  function updateMap() {
+    if (!mapGeo) return;
+    const { runs, live, robot, unit } = mapGeo;
+    live.innerHTML = "";
+    for (const r of runs) {
+      if (r.pts[0].t > curT) break;
+      const pts = r.pts.filter((p) => p.t <= curT);
+      const s = sampleAt(curT);
+      if (r.pts[r.pts.length - 1].t > curT && s) pts.push(s);
+      el("polyline", { points: pts.map((p) => `${p.x},${p.y}`).join(" "), fill: "none", stroke: css(CAT[r.cat].color), "stroke-width": 3.5 * unit, "stroke-linejoin": "round", "stroke-linecap": "round" }, live);
+    }
+    const s = sampleAt(curT);
+    if (s) robot.setAttribute("transform", `translate(${s.x} ${s.y}) rotate(${s.h})`);
+  }
+
+  // ---------- readout & timeline ----------
+  function renderReadout() {
+    const s = sampleAt(curT);
+    if (!s) { $("readout").innerHTML = `<div class="empty">Tidak ada data posisi (baris T,).</div>`; return; }
+    const c = CAT[catOf(s.state)];
+    $("readout").innerHTML = `
+      <div style="grid-column:1/-1"><span class="k">State</span><span class="v"><span class="pill state-pill"><span class="dot" style="background:var(${c.color})"></span>${STATE_LABEL[s.state] || s.state}</span> <span class="mono" style="font-size:12px;color:var(--muted)">${s.state}</span></span></div>
+      <div><span class="k">Posisi x, y</span><span class="v">${Math.round(s.x)}, ${Math.round(s.y)} mm</span></div>
+      <div><span class="k">Arah</span><span class="v">${Math.round(s.h)}°</span></div>
+      <div><span class="k">Kecepatan</span><span class="v">${Math.round(s.spd)} mm/s</span></div>
+      <div><span class="k">Reflection</span><span class="v">${s.r}%</span></div>
+      <div><span class="k">Ultrasonic</span><span class="v">${fmtDist(s.us)}</span></div>
+      <div><span class="k">Waktu</span><span class="v">${fmtS(curT)} s</span></div>`;
+  }
+
+  const EV_STYLE = {
+    START:    { ic: "S", bg: "--accent", title: () => "Mulai jalan", d: (e) => `batas ${e.d[0]} mm/s · prioritas ${(e.d[1] || "").replace(/-/g, " › ")} · tepi ${e.d[2] || ""}` },
+    CAL:      { ic: "K", bg: "--c-idle", title: () => "Kalibrasi", d: (e) => `hitam ${e.d[0]} · putih ${e.d[1]} · kontras ${e.d[1] - e.d[0]}` },
+    OBSTACLE: { ic: "!", bg: "--critical", title: () => "Obstacle di depan", d: (e) => `jarak ${e.d[0]} mm` },
+    NODE:     { ic: "#", bg: "--c-decide", title: (e) => `Titik keputusan ${e.d[0]}`, d: (e) => `sebab: ${e.d[1] || "-"}` },
+    SCAN:     { ic: "≡", bg: "--c-decide", title: () => "Hasil scan", d: (e) => `garis: ${e.d[0] === "-" ? "tidak ada" : e.d[0].replace(/\+/g, ", ")} · US kiri/lurus/kanan ${e.d.slice(1, 4).map((v) => (+v >= 2000 ? ">2m" : v)).join(" / ")}` },
+    PILIH:    { ic: "→", bg: "--c-decide", title: (e) => `Pilih ${e.d[0]}`, d: (e) => (e.d[1] === "langsung" ? "depan bebas, tanpa scan" : "dari hasil scan") },
+    AVOID:    { ic: "↷", bg: "--c-recover", title: (e) => `Menghindar ke ${e.d[0]}`, d: () => "tidak ada cabang, obstacle di tengah garis" },
+    UTURN:    { ic: "↺", bg: "--c-recover", title: () => "Putar balik", d: () => "semua cabang tertutup" },
+    LOST:     { ic: "?", bg: "--c-recover", title: () => "Garis hilang", d: () => "robot menyapu kiri-kanan" },
+    FINISH:   { ic: "F", bg: "--good", title: () => "Finish", d: (e) => `total ${fmtS(e.t)} s sejak program jalan` },
+  };
+
+  function renderTimeline() {
+    const list = run.events.filter((e) => EV_STYLE[e.kind]);
+    $("evCount").textContent = list.length + " kejadian";
+    if (!list.length) { $("timeline").innerHTML = `<li class="empty">Tidak ada baris E, di log.</li>`; return; }
+    $("timeline").innerHTML = list.map((e, i) => {
+      const st = EV_STYLE[e.kind];
+      return `<li><button class="ev" type="button" data-t="${e.t}" data-i="${i}"><span class="t">${fmtS(e.t)}s</span><span class="ic" style="background:var(${st.bg})">${st.ic}</span><span><span class="title">${st.title(e)}</span><br><span class="d">${st.d(e)}</span></span></button></li>`;
+    }).join("");
+    $("timeline").querySelectorAll(".ev").forEach((b) => b.addEventListener("click", () => seek(+b.dataset.t)));
+  }
+
+  function updateTimeline() {
+    const items = $("timeline").querySelectorAll(".ev");
+    let curIdx = -1;
+    items.forEach((b, i) => { const t = +b.dataset.t; b.classList.toggle("future", t > curT); if (t <= curT) curIdx = i; });
+    items.forEach((b, i) => b.classList.toggle("current", i === curIdx));
+  }
+
+  // ---------- charts ----------
+  const charts = [];
+  function makeChart(svgId, get, opts) {
+    const c = { svg: $(svgId), get, opts };
+    charts.push(c);
+    c.svg.addEventListener("mousemove", (ev) => chartHover(c, ev));
+    c.svg.addEventListener("mouseleave", () => { hideTip(); if (c.hover) c.hover.setAttribute("opacity", 0); });
+    c.svg.addEventListener("click", (ev) => { const t = chartT(c, ev); if (t != null) seek(t); });
+    return c;
+  }
+  function chartT(c, ev) {
+    if (!c.geo) return null;
+    const r = c.svg.getBoundingClientRect();
+    const px = ev.clientX - r.left;
+    const { x0, x1, tMin, tMax } = c.geo;
+    return Math.min(tMax, Math.max(tMin, tMin + (px - x0) / (x1 - x0) * (tMax - tMin)));
+  }
+  function renderChart(c) {
+    const svg = c.svg;
+    svg.innerHTML = "";
+    const W = svg.getBoundingClientRect().width || 360, H = 150;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const S = run.samples;
+    if (S.length < 2) { c.geo = null; return; }
+    const x0 = 34, x1 = W - 8, y0 = 8, y1 = H - 22;
+    const tMin = S[0].t, tMax = S[S.length - 1].t;
+    const [vMin, vMax] = c.opts.range(S);
+    const X = (t) => x0 + (t - tMin) / Math.max(1, tMax - tMin) * (x1 - x0);
+    const Y = (v) => y1 - (v - vMin) / Math.max(1e-6, vMax - vMin) * (y1 - y0);
+    c.geo = { x0, x1, tMin, tMax, X, Y };
+
+    const ticks = c.opts.ticks;
+    for (const v of ticks) {
+      el("line", { x1: x0, x2: x1, y1: Y(v), y2: Y(v), class: v === vMin ? "baseline" : "gridline" }, svg);
+      el("text", { x: x0 - 6, y: Y(v) + 3, "text-anchor": "end", class: "tick" }, svg).textContent = v;
+    }
+    const span = (tMax - tMin) / 1000;
+    const step = span > 60 ? 20 : span > 30 ? 10 : 5;
+    for (let s = Math.ceil(tMin / 1000 / step) * step; s <= tMax / 1000; s += step)
+      el("text", { x: X(s * 1000), y: H - 6, "text-anchor": "middle", class: "tick" }, svg).textContent = s + "s";
+
+    // segments (null breaks the line)
+    const segs = [];
+    let cur = [];
+    for (const s of S) {
+      const v = c.get(s);
+      if (v == null) { if (cur.length) segs.push(cur); cur = []; continue; }
+      cur.push([X(s.t), Y(Math.min(vMax, Math.max(vMin, v)))]);
+    }
+    if (cur.length) segs.push(cur);
+    const color = css("--c-follow");
+    for (const sg of segs) {
+      if (sg.length < 2) { el("circle", { cx: sg[0][0], cy: sg[0][1], r: 2, fill: color }, svg); continue; }
+      el("path", { d: `M${sg[0][0]},${y1} L` + sg.map((p) => p.join(",")).join(" L") + ` L${sg[sg.length - 1][0]},${y1} Z`, fill: color, "fill-opacity": 0.10 }, svg);
+      el("path", { d: "M" + sg.map((p) => p.join(",")).join(" L"), fill: "none", stroke: color, "stroke-width": 1.5, "stroke-linejoin": "round" }, svg);
+    }
+    c.cursor = el("line", { y1: y0, y2: y1, stroke: css("--ink"), "stroke-width": 1.5 }, svg);
+    c.hover = el("line", { y1: y0, y2: y1, stroke: css("--muted"), "stroke-width": 1, "stroke-dasharray": "3 3", opacity: 0 }, svg);
+    el("rect", { x: x0, y: y0, width: x1 - x0, height: y1 - y0, fill: "transparent", style: "cursor:crosshair" }, svg);
+    updateChart(c);
+  }
+  function updateChart(c) {
+    if (!c.geo || !c.cursor) return;
+    const x = c.geo.X(Math.min(c.geo.tMax, Math.max(c.geo.tMin, curT)));
+    c.cursor.setAttribute("x1", x); c.cursor.setAttribute("x2", x);
+  }
+  function chartHover(c, ev) {
+    const t = chartT(c, ev);
+    if (t == null) return;
+    const x = c.geo.X(t);
+    c.hover.setAttribute("x1", x); c.hover.setAttribute("x2", x); c.hover.setAttribute("opacity", 1);
+    const s = sampleAt(t);
+    const v = c.get(s);
+    showTip(ev, `<b>${fmtS(t)} s</b> · ${v == null ? c.opts.none : c.opts.fmt(v)}<br>${STATE_LABEL[s.state] || s.state} · klik untuk lompat`);
+  }
+
+  // ---------- state bars & node table ----------
+  function renderStateBars() {
+    const entries = Object.entries(info.dur).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    const max = entries.length ? entries[0][1] : 1;
+    const total = entries.reduce((a, [, v]) => a + v, 0) || 1;
+    $("stateBars").innerHTML = entries.length ? entries.map(([s, v]) =>
+      `<div class="barrow" title="${s}"><span>${STATE_LABEL[s] || s}</span><div class="track"><div class="fill" style="width:${(v / max * 100).toFixed(1)}%;background:var(${CAT[catOf(s)].color})"></div></div><span class="val">${fmtS(v)} s · ${Math.round(v / total * 100)}%</span></div>`).join("")
+      : `<div class="empty">Tidak ada data state.</div>`;
+  }
+  function renderNodes() {
+    const t = $("nodeTable");
+    if (!info.nodes.length) { t.innerHTML = `<tr><td class="empty">Robot tidak berhenti di titik keputusan mana pun.</td></tr>`; return; }
+    const d = (n, i) => {
+      if (!n.dist) return "–";
+      const v = n.dist[i];
+      const txt = v >= 2000 ? ">2 m" : v + " mm";
+      return v < 200 ? `<span class="blocked">${txt}</span>` : txt;
+    };
+    t.innerHTML = `<thead><tr><th>#</th><th>Waktu</th><th>Sebab</th><th>Cabang terlihat</th><th>US kiri</th><th>US lurus</th><th>US kanan</th><th>Pilihan</th></tr></thead><tbody>` +
+      info.nodes.map((n) => `<tr class="rowlink" data-t="${n.t}"><td class="mono">${n.n}</td><td class="mono">${fmtS(n.t)} s</td><td>${n.cause}</td><td>${n.branches == null ? (n.how === "langsung" ? "tanpa scan" : "–") : n.branches === "-" ? "tidak ada" : n.branches.replace(/\+/g, ", ")}</td><td class="mono">${d(n, 0)}</td><td class="mono">${d(n, 1)}</td><td class="mono">${d(n, 2)}</td><td><span class="choice">${n.choice || "–"}</span>${n.how && n.how !== "scan" && n.how !== "avoid" && n.how !== "uturn" ? ` <span class="msg">(${n.how})</span>` : ""}</td></tr>`).join("") + `</tbody>`;
+    t.querySelectorAll("tr.rowlink").forEach((r) => r.addEventListener("click", () => seek(+r.dataset.t)));
+  }
+
+  // ---------- tooltip ----------
+  const tip = $("tip");
+  function showTip(ev, html) { tip.innerHTML = html; tip.hidden = false; moveTip(ev); }
+  function moveTip(ev) {
+    const pad = 14, r = tip.getBoundingClientRect();
+    let x = ev.clientX + pad, y = ev.clientY + pad;
+    if (x + r.width > window.innerWidth - 8) x = ev.clientX - r.width - pad;
+    if (y + r.height > window.innerHeight - 8) y = ev.clientY - r.height - pad;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  }
+  function hideTip() { tip.hidden = true; }
+
+  // ---------- playback ----------
+  function tBounds() { const S = run.samples; return S.length ? [S[0].t, S[S.length - 1].t] : [0, info.tEnd]; }
+  function seek(t) {
+    const [a, b] = tBounds();
+    curT = Math.min(b, Math.max(a, t));
+    $("scrub").value = curT;
+    $("timeLabel").textContent = `${fmtS(curT)} / ${fmtS(b)} s`;
+    updateMap(); renderReadout(); updateTimeline(); charts.forEach(updateChart);
+  }
+  function setPlaying(p) {
+    playing = p;
+    $("btnPlay").textContent = p ? "Jeda" : "Putar";
+    $("btnPlay").setAttribute("aria-label", p ? "Jeda" : "Putar");
+    if (p) { const [, b] = tBounds(); if (curT >= b) seek(tBounds()[0]); lastFrame = performance.now(); requestAnimationFrame(tick); }
+  }
+  function tick(now) {
+    if (!playing) return;
+    const dt = now - lastFrame; lastFrame = now;
+    const [, b] = tBounds();
+    seek(curT + dt * speed);
+    if (curT >= b) { setPlaying(false); return; }
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- load ----------
+  function renderAll(toEnd) {
+    info = analyze(run);
+    const [a, b] = tBounds();
+    $("scrub").min = a; $("scrub").max = Math.max(a, b);
+    $("rawLog").textContent = run.raw.slice(-3000).join("\n");
+    renderStats(); renderLegend(); renderMap(); renderTimeline(); renderStateBars(); renderNodes();
+    charts.forEach(renderChart);
+    seek(toEnd ? b : curT);
+  }
+
+  function load(text, label, isDemo) {
+    const parsed = parseLog(text);
+    if (!parsed.samples.length && !parsed.events.length) {
+      $("loadMsg").textContent = "Tidak ada baris T, atau E, di teks ini. Pastikan TELEMETRY = True lalu salin ulang seluruh output console.";
+      $("loadMsg").classList.add("err");
+      return false;
+    }
+    setPlaying(false);
+    run = parsed;
+    runSource = isDemo ? "demo" : "paste";
+    $("sourceChip").textContent = label;
+    $("loadMsg").classList.remove("err");
+    $("loadMsg").textContent = isDemo ? "" : `Terbaca ${parsed.samples.length} titik posisi dan ${parsed.events.length} kejadian.`;
+    renderAll(true);
+    if (!isDemo) { try { localStorage.setItem("mazeTrackerLastLog", text); } catch (e) {} }
+    return true;
+  }
+
+
+  // =====================================================================
+  // LIVE: Web Bluetooth ke hub Pybricks
+  // =====================================================================
+  const PYB_SVC = "c5f50001-8280-46da-89f4-6d8051e4aeef";
+  const PYB_CMD = "c5f50002-8280-46da-89f4-6d8051e4aeef";
+  const PYB_CAP = "c5f50003-8280-46da-89f4-6d8051e4aeef";
+  const NUS_SVC = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+  const NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+  const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+  const FLAG_PROGRAM_RUNNING = 1 << 6;
+
+  const ble = { device: null, cmd: null, nusRx: null, maxWrite: 20, running: false, queue: Promise.resolve(), paused: false };
+  let lineBuf = "";
+  const decoder = new TextDecoder();
+  let liveDirty = false, liveMode = false;
+
+  function setConn(state, text) {
+    $("connStatus").dataset.s = state;
+    $("connText").textContent = text;
+    const on = state === "on";
+    ["btnStart", "btnStop", "btnPause", "btnGet", "btnSendAll", "btnSend"].forEach((id) => ($(id).disabled = !on));
+    $("btnConnect").textContent = on ? "Putuskan" : "Sambungkan hub";
+    $("liveBadge").hidden = !on;
+    Object.keys(PDEF).forEach((n) => $("row_" + n) && markDirty(n));
+  }
+  function note(html, isErr) { $("connNote").innerHTML = html; $("connNote").classList.toggle("err", !!isErr); }
+  function setRunning(r) {
+    const was = ble.running;
+    ble.running = r;
+    $("progState").dataset.run = r ? "1" : "0";
+    $("progState").textContent = r ? "Program: berjalan" : "Program: berhenti";
+    if (r && !was) {
+      if ($("optClear").checked) resetRun("Run live");
+      ble.paused = false; $("btnPause").textContent = "Jeda robot";
+    }
+  }
+
+  function bleWrite(ch, bytes) {
+    ble.queue = ble.queue.then(() => (ch.writeValueWithResponse ? ch.writeValueWithResponse(bytes) : ch.writeValue(bytes)))
+      .catch((e) => consoleLine("! gagal kirim: " + e.message, "ln-err"));
+    return ble.queue;
+  }
+  function sendCmd(byte) { if (ble.cmd) return bleWrite(ble.cmd, new Uint8Array([byte])); }
+  function sendLine(text) {
+    if (!ble.cmd) return;
+    const data = new TextEncoder().encode(text + "\n");
+    consoleLine("> " + text, "ln-me");
+    if (ble.nusRx) {
+      for (let i = 0; i < data.length; i += 20) bleWrite(ble.nusRx, data.slice(i, i + 20));
+    } else {
+      const n = Math.max(1, ble.maxWrite - 1);
+      for (let i = 0; i < data.length; i += n) {
+        const chunk = data.slice(i, i + n);
+        const pkt = new Uint8Array(chunk.length + 1);
+        pkt[0] = 0x06; pkt.set(chunk, 1);            // WRITE_STDIN
+        bleWrite(ble.cmd, pkt);
+      }
+    }
+  }
+
+  function onStdout(text) {
+    lineBuf += text;
+    let i;
+    while ((i = lineBuf.indexOf("\n")) >= 0) {
+      const line = lineBuf.slice(0, i).replace(/\r$/, "");
+      lineBuf = lineBuf.slice(i + 1);
+      ingestLine(line);
+    }
+  }
+  function onPybEvent(ev) {
+    const dv = ev.target.value;
+    if (dv.byteLength < 1) return;
+    const kind = dv.getUint8(0);
+    if (kind === 0x00 && dv.byteLength >= 5) setRunning(!!(dv.getUint32(1, true) & FLAG_PROGRAM_RUNNING));
+    else if (kind === 0x01) onStdout(decoder.decode(new Uint8Array(dv.buffer, dv.byteOffset + 1, dv.byteLength - 1), { stream: true }));
+  }
+
+  async function connect() {
+    if (!navigator.bluetooth) {
+      note("Browser ini tidak punya Web Bluetooth. Buka file ini di <b>Chrome</b> atau <b>Edge</b> di laptop, atau Chrome di Android. Safari, Firefox, dan iPhone belum mendukung.", true);
+      return;
+    }
+    try {
+      setConn("busy", "Memilih hub…");
+      const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [PYB_SVC] }], optionalServices: [NUS_SVC] });
+      ble.device = device;
+      device.addEventListener("gattserverdisconnected", onDisconnected);
+      setConn("busy", "Menyambung ke " + (device.name || "hub") + "…");
+      const server = await device.gatt.connect();
+      const svc = await server.getPrimaryService(PYB_SVC);
+      ble.cmd = await svc.getCharacteristic(PYB_CMD);
+      ble.cmd.addEventListener("characteristicvaluechanged", onPybEvent);
+      await ble.cmd.startNotifications();
+      try { const cap = await svc.getCharacteristic(PYB_CAP); const v = await cap.readValue(); ble.maxWrite = v.getUint16(0, true) || 20; } catch (e) { ble.maxWrite = 20; }
+      try {
+        const nus = await server.getPrimaryService(NUS_SVC);
+        ble.nusRx = await nus.getCharacteristic(NUS_RX);
+        const tx = await nus.getCharacteristic(NUS_TX);
+        tx.addEventListener("characteristicvaluechanged", (e) => onStdout(decoder.decode(e.target.value, { stream: true })));
+        await tx.startNotifications();
+      } catch (e) { ble.nusRx = null; }
+      liveMode = true;
+      setConn("on", "Tersambung: " + (device.name || "hub Pybricks"));
+      note("Tersambung. Klik <b>Jalankan program</b> (atau tekan tombol hub) untuk mulai. Data rute muncul begitu robot selesai kalibrasi.");
+      consoleLine("# tersambung ke " + (device.name || "hub") + (ble.nusRx ? " (stdio lewat UART)" : ""), "ln-a");
+    } catch (e) {
+      if (e && e.name === "NotFoundError") { setConn("off", "Belum tersambung"); note("Pemilihan hub dibatalkan. Pastikan hub menyala dan Pybricks Code sudah diputuskan, lalu coba lagi."); return; }
+      if (e && e.name === "SecurityError") { setConn("err", "Diblokir"); note("Halaman ini tidak diizinkan memakai Bluetooth. Unduh file <b>maze-tracker-live.html</b> dan buka langsung di Chrome/Edge.", true); return; }
+      setConn("err", "Gagal tersambung");
+      note("Gagal tersambung: " + (e && e.message ? e.message : e) + ". Matikan-nyalakan hub lalu coba lagi.", true);
+    }
+  }
+  function disconnect() { if (ble.device && ble.device.gatt.connected) ble.device.gatt.disconnect(); else onDisconnected(); }
+  function onDisconnected() {
+    ble.cmd = null; ble.nusRx = null; ble.device = null; liveMode = false;
+    setConn("off", "Terputus");
+    $("progState").dataset.run = "0"; $("progState").textContent = "Program: –";
+    note("Sambungan terputus. Data run terakhir tetap ditampilkan. Klik <b>Sambungkan hub</b> untuk tersambung lagi.");
+    consoleLine("# terputus", "ln-err");
+  }
+
+  // ---------- incoming lines ----------
+  function resetRun(label) {
+    setPlaying(false);
+    run = { samples: [], events: [], raw: [] };
+    runSource = "live";
+    curT = 0;
+    $("sourceChip").textContent = label || "Run live";
+    renderAll(true);
+  }
+  function ingestLine(line) {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    const p = trimmed.split(",");
+    const kind = p[0];
+    if (kind !== "T" || !$("optHideT").checked) consoleLine(trimmed, kind === "A" ? (p[1] === "OK" ? "ln-a" : "ln-err") : "");
+    if (kind === "P" && p.length >= 3) { paramFromRobot(p[1], p.slice(2).join(",")); return; }
+    if (kind === "A" && p.length >= 3) { paramAck(p[1], p[2], p.slice(3).join(",")); return; }
+    if (runSource !== "live" && (kind === "T" || kind === "E")) resetRun("Run live");
+    run.raw.push(trimmed);
+    if (kind === "T" && p.length >= 9) {
+      const s = { t: +p[1], x: +p[2], y: +p[3], h: +p[4], state: p[5], r: +p[6], us: +p[7], spd: +p[8] };
+      if ([s.t, s.x, s.y, s.h].every(Number.isFinite)) { run.samples.push(s); liveDirty = true; }
+    } else if (kind === "E" && p.length >= 5) {
+      const e = { t: +p[1], x: +p[2], y: +p[3], kind: p[4], d: p.slice(5) };
+      if (Number.isFinite(e.t)) { run.events.push(e); liveDirty = true; }
+    }
+  }
+  setInterval(() => {
+    if (!liveDirty) return;
+    liveDirty = false;
+    const follow = $("optFollow").checked;
+    renderAll(follow);
+  }, 400);
+
+  // ---------- console ----------
+  const consoleLines = [];
+  function consoleLine(text, cls) {
+    consoleLines.push([text, cls || ""]);
+    if (consoleLines.length > 400) consoleLines.splice(0, consoleLines.length - 400);
+    scheduleConsole();
+  }
+  let consoleTimer = null;
+  function scheduleConsole() {
+    if (consoleTimer) return;
+    consoleTimer = setTimeout(() => {
+      consoleTimer = null;
+      const pre = $("console");
+      const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+      pre.innerHTML = consoleLines.map(([t, c]) => `<span class="${c}">${t.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span>`).join("\n");
+      if (atBottom) pre.scrollTop = pre.scrollHeight;
+    }, 150);
+  }
+
+  // ---------- parameters ----------
+  const PRIORITY_OPTS = ["KIRI|LURUS|KANAN", "KIRI|KANAN|LURUS", "LURUS|KIRI|KANAN", "LURUS|KANAN|KIRI", "KANAN|LURUS|KIRI", "KANAN|KIRI|LURUS"];
+  const PARAM_GROUPS = [
+    ["Kecepatan & line follower", [
+      ["DRIVE_SPEED", "Kecepatan maksimal", "int", 150, "mm/s", 20, 600, 10],
+      ["MIN_SPEED", "Kecepatan di tikungan", "int", 40, "mm/s", 10, 400, 5],
+      ["APPROACH_SPEED", "Kecepatan dekat obstacle", "int", 50, "mm/s", 10, 400, 5],
+      ["SEARCH_SPEED", "Kecepatan cari garis", "int", 80, "mm/s", 10, 400, 5],
+      ["KP", "KP (proportional)", "float", 2.3, "", 0, 20, 0.1],
+      ["KD", "KD (derivative)", "float", 5.7, "", 0, 50, 0.1],
+      ["SLOW_FACTOR", "Faktor melambat", "float", 1.5, "", 0, 10, 0.1],
+    ]],
+    ["Persimpangan & scan", [
+      ["PRIORITY", "Prioritas cabang", "list", "KIRI|LURUS|KANAN"],
+      ["FOLLOW_EDGE", "Tepi garis diikuti", "choice", "KIRI", "", ["KIRI", "KANAN"]],
+      ["STRAIGHT_IF_CLEAR", "Langsung lurus kalau depan bebas", "bool", true],
+      ["INTERSECTION_DIST", "Hitam penuh = persimpangan", "int", 20, "mm", 5, 100, 1],
+      ["CENTER_DIST", "Maju ke tengah persimpangan", "int", 60, "mm", 0, 200, 5],
+      ["COOLDOWN_DIST", "Jeda deteksi persimpangan", "int", 60, "mm", 0, 300, 5],
+      ["SCAN_ANGLE", "Sudut scan kiri & kanan", "int", 110, "°", 60, 180, 5],
+      ["SCAN_TURN_RATE", "Kecepatan putar scan", "int", 80, "°/s", 20, 400, 10],
+      ["SIDE_OBSTACLE_DIST", "Cabang tertutup jika US <", "int", 200, "mm", 50, 1000, 10],
+    ]],
+    ["Obstacle & garis hilang", [
+      ["OBSTACLE_DIST", "Mulai pelan jika US <", "int", 150, "mm", 50, 1000, 10],
+      ["STOP_DIST", "Berhenti jika US <", "int", 70, "mm", 30, 500, 5],
+      ["CLEAR_DIST", "Jalur bebas jika US >", "int", 300, "mm", 50, 2000, 10],
+      ["MAX_SEARCH_DIST", "Maks jalan lurus cari garis", "int", 300, "mm", 50, 1500, 10],
+      ["LOST_TIME", "Garis hilang setelah", "int", 400, "ms", 50, 3000, 50],
+      ["SEARCH_ANGLE", "Sudut sapu cari garis", "int", 120, "°", 30, 180, 5],
+    ]],
+    ["Finish", [
+      ["FINISH_ENABLED", "Deteksi finish aktif", "bool", false],
+      ["WHITE_TRIGGER", "Putih sebelum cek finish", "int", 12, "mm", 2, 100, 1],
+      ["GAP_MAX_DIST", "Lebar celah maksimal", "int", 80, "mm", 10, 300, 5],
+      ["STRAIGHT_TOL", "Toleransi jalan lurus", "int", 30, "°", 5, 90, 1],
+    ]],
+    ["Mata, suara & log", [
+      ["EYES_ENABLED", "Ekspresi mata", "bool", true],
+      ["MUSIC_ENABLED", "Semua suara", "bool", true],
+      ["BG_MUSIC_ENABLED", "Lagu latar", "bool", true],
+      ["SFX_ENABLED", "Bunyi obstacle / garis hilang", "bool", true],
+      ["VOLUME", "Volume", "int", 70, "%", 0, 100, 5],
+      ["DEBUG", "Print debug", "bool", true],
+      ["TEL_EVERY", "Interval telemetri", "int", 100, "ms", 50, 1000, 10],
+    ]],
+  ];
+  const PDEF = {};
+  PARAM_GROUPS.forEach(([, rows]) => rows.forEach((r) => (PDEF[r[0]] = { name: r[0], label: r[1], type: r[2], def: r[3], unit: r[4] || "", min: r[5], max: r[6], step: r[7], choices: r[5] })));
+  const robotVal = {};   // value currently on the robot (from P / A lines)
+
+  function renderParams() {
+    $("params").innerHTML = PARAM_GROUPS.map(([g, rows]) => `<div class="pgroup"><h3>${g}</h3>${rows.map(([n]) => {
+      const d = PDEF[n];
+      let input;
+      if (d.type === "bool") input = `<input type="checkbox" id="p_${n}" ${d.def ? "checked" : ""}>`;
+      else if (d.type === "list") input = `<select id="p_${n}">${PRIORITY_OPTS.map((o) => `<option value="${o}" ${o === d.def ? "selected" : ""}>${o.replace(/\|/g, " › ")}</option>`).join("")}</select>`;
+      else if (d.type === "choice") input = `<select id="p_${n}">${d.choices.map((o) => `<option ${o === d.def ? "selected" : ""}>${o}</option>`).join("")}</select>`;
+      else input = `<input type="number" id="p_${n}" value="${d.def}" min="${d.min}" max="${d.max}" step="${d.step}">`;
+      return `<div class="prow" id="row_${n}"><label class="pl" for="p_${n}">${d.label}${d.unit ? ` (${d.unit})` : ""}<small>${n}</small></label>${input}<button type="button" data-send="${n}" disabled>Kirim</button></div>`;
+    }).join("")}</div>`).join("");
+    $("params").querySelectorAll("input,select").forEach((inp) => {
+      const n = inp.id.slice(2);
+      inp.addEventListener("input", () => markDirty(n));
+      inp.addEventListener("change", () => markDirty(n));
+      inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendParam(n); } });
+    });
+    $("params").querySelectorAll("button[data-send]").forEach((b) => b.addEventListener("click", () => sendParam(b.dataset.send)));
+  }
+  function inputVal(n) {
+    const d = PDEF[n], inp = $("p_" + n);
+    if (d.type === "bool") return inp.checked ? "True" : "False";
+    return String(inp.value).trim();
+  }
+  function norm(n, v) {
+    const d = PDEF[n];
+    if (d.type === "bool") return /^(true|1|on|ya)$/i.test(String(v)) ? "True" : "False";
+    if (d.type === "int" || d.type === "float") return String(+v);
+    return String(v);
+  }
+  function markDirty(n) {
+    const row = $("row_" + n);
+    row.classList.remove("ok", "bad");
+    const known = n in robotVal;
+    const dirty = known ? norm(n, inputVal(n)) !== norm(n, robotVal[n]) : false;
+    row.classList.toggle("dirty", dirty);
+    row.querySelector("button").disabled = !(ble.cmd && (dirty || !known));
+  }
+  function setInput(n, v) {
+    const d = PDEF[n], inp = $("p_" + n);
+    if (!inp) return;
+    if (d.type === "bool") inp.checked = norm(n, v) === "True";
+    else inp.value = v;
+  }
+  function paramFromRobot(n, v) {
+    if (!PDEF[n]) return;
+    robotVal[n] = v;
+    setInput(n, v);
+    markDirty(n);
+    $("paramNote").textContent = "Nilai di bawah adalah nilai yang sedang dipakai robot. Ubah lalu klik Kirim (atau tekan Enter). Kotak kuning = belum dikirim.";
+  }
+  function paramAck(status, n, v) {
+    if (n === "PAUSE") { ble.paused = v === "1"; $("btnPause").textContent = ble.paused ? "Lanjutkan robot" : "Jeda robot"; return; }
+    const row = $("row_" + n);
+    if (!row) return;
+    if (status === "OK") { robotVal[n] = v; setInput(n, v); markDirty(n); row.classList.add("ok"); setTimeout(() => row.classList.remove("ok"), 1500); }
+    else { row.classList.add("bad"); }
+  }
+  function sendParam(n) {
+    if (!ble.cmd) return;
+    sendLine(`SET ${n} ${inputVal(n)}`);
+  }
+  function toPython(n) {
+    const d = PDEF[n], v = inputVal(n);
+    if (d.type === "bool") return v;
+    if (d.type === "list") return "[" + v.split("|").map((x) => `"${x}"`).join(", ") + "]";
+    if (d.type === "choice") return `"${v}"`;
+    if (d.type === "float") return String(+v).includes(".") ? String(+v) : (+v).toFixed(1);
+    return String(Math.round(+v));
+  }
+  async function copyCode() {
+    const text = PARAM_GROUPS.map(([g, rows]) => `# --- ${g} ---\n` + rows.map(([n]) => `${n} = ${toPython(n)}`).join("\n")).join("\n\n");
+    const box = $("codeOut");
+    try { await navigator.clipboard.writeText(text); $("btnCopyCode").textContent = "Tersalin"; setTimeout(() => ($("btnCopyCode").textContent = "Salin sebagai kode"), 1500); box.hidden = true; }
+    catch (e) { box.hidden = false; box.value = text; box.focus(); box.select(); $("btnCopyCode").textContent = "Salin manual dari kotak"; }
+  }
+
+  // ---------- wiring ----------
+  renderParams();
+  $("btnConnect").addEventListener("click", () => (ble.cmd ? disconnect() : connect()));
+  $("btnStart").addEventListener("click", () => sendCmd(0x01));   // START_USER_PROGRAM
+  $("btnStop").addEventListener("click", () => sendCmd(0x00));    // STOP_USER_PROGRAM
+  $("btnPause").addEventListener("click", () => sendLine(ble.paused ? "RESUME" : "PAUSE"));
+  $("btnGet").addEventListener("click", () => sendLine("GET"));
+  $("btnSendAll").addEventListener("click", () => Object.keys(PDEF).forEach((n) => { if ($("row_" + n).classList.contains("dirty")) sendParam(n); }));
+  $("btnCopyCode").addEventListener("click", copyCode);
+  $("btnClear").addEventListener("click", () => resetRun(liveMode ? "Run live" : "Tampilan kosong"));
+  $("sendForm").addEventListener("submit", (e) => { e.preventDefault(); const v = $("sendInput").value.trim(); if (v) { sendLine(v); $("sendInput").value = ""; } });
+  $("optHideT").addEventListener("change", scheduleConsole);
+  if (!navigator.bluetooth) note("Browser ini tidak punya Web Bluetooth, jadi hanya bisa menampilkan log yang ditempel. Untuk live, buka file ini di <b>Chrome</b> atau <b>Edge</b> (laptop) atau Chrome di Android.", true);
+  window.__mazeTest = { ingestLine, resetRun, paramFromRobot, paramAck };
+
+  makeChart("chSpeed", (s) => s.spd, { range: () => [0, Math.max(200, Math.ceil(Math.max(...run.samples.map((s) => s.spd)) / 50) * 50)], get ticks() { const m = Math.max(200, Math.ceil(Math.max(...run.samples.map((s) => s.spd)) / 50) * 50); return [0, m / 2, m]; }, fmt: (v) => Math.round(v) + " mm/s", none: "–" });
+  makeChart("chRefl", (s) => s.r, { range: () => [0, 100], ticks: [0, 50, 100], fmt: (v) => v + "%", none: "–" });
+  makeChart("chUs", (s) => (s.us >= 2000 ? null : s.us), { range: () => [0, 500], ticks: [0, 250, 500], fmt: (v) => Math.round(v) + " mm", none: "tidak ada benda" });
+
+  $("btnPlay").addEventListener("click", () => setPlaying(!playing));
+  $("scrub").addEventListener("input", (e) => { setPlaying(false); seek(+e.target.value); });
+  document.querySelectorAll(".speed-group button").forEach((b) => b.addEventListener("click", () => {
+    speed = +b.dataset.speed;
+    document.querySelectorAll(".speed-group button").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+  }));
+  $("btnLoad").addEventListener("click", () => {
+    const txt = $("logInput").value;
+    if (!txt.trim()) { $("loadMsg").textContent = "Kotak log masih kosong. Tempel output console dulu."; $("loadMsg").classList.add("err"); return; }
+    load(txt, "Run dari log kamu", false);
+  });
+  $("fileInput").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { $("logInput").value = rd.result; load(rd.result, "Run dari " + f.name, false); };
+    rd.readAsText(f);
+  });
+  $("btnDemo").addEventListener("click", () => load($("demoLog").textContent, "Data contoh (simulasi)", true));
+
+  let rT;
+  window.addEventListener("resize", () => { clearTimeout(rT); rT = setTimeout(() => { if (run) { renderMap(); charts.forEach(renderChart); seek(curT); } }, 150); });
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  const rethemed = () => { if (run) { renderMap(); charts.forEach(renderChart); seek(curT); } };
+  if (mq.addEventListener) mq.addEventListener("change", rethemed);
+  new MutationObserver(rethemed).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // start: last pasted log if any, otherwise the demo
+  let last = null;
+  try { last = localStorage.getItem("mazeTrackerLastLog"); } catch (e) {}
+  if (!(last && load(last, "Run terakhir yang kamu muat", false))) {
+    load($("demoLog").textContent, "Data contoh (simulasi)", true);
+  } else { $("logInput").value = last; }
+})();
+</script>
+
+</body></html>
