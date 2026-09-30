@@ -2719,7 +2719,7 @@ else if (typeof exports === 'object')
     }
     try {
       setConn("busy", "Memilih hub…");
-      const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [PYB_SVC] }], optionalServices: [NUS_SVC] });
+      const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [PYB_SVC] }], optionalServices: [NUS_SVC, "device_information"] });
       ble.device = device;
       device.addEventListener("gattserverdisconnected", onDisconnected);
       setConn("busy", "Menyambung ke " + (device.name || "hub") + "…");
@@ -2734,8 +2734,21 @@ else if (typeof exports === 'object')
         ble.flags = v.byteLength >= 6 ? v.getUint32(2, true) : 0;
         ble.maxProg = v.byteLength >= 10 ? v.getUint32(6, true) : 0;
         ble.slots = v.byteLength >= 11 ? v.getUint8(10) : 0;
-      } catch (e) { ble.maxWrite = 20; ble.flags = 0; ble.maxProg = 0; ble.slots = 0; }
+        ble.hasCaps = true;
+      } catch (e) { ble.maxWrite = 20; ble.flags = 0; ble.maxProg = 0; ble.slots = 0; ble.hasCaps = false; }
+      // Versi Pybricks Profile (Device Information > Software Revision), mis. "1.4.0".
+      // >= 1.3 : stdin/stdout lewat Pybricks service (NUS diabaikan walau ada)
+      //   1.2  : stdin/stdout lewat Nordic UART (firmware Pybricks v3.2)
+      ble.profile = null;
       try {
+        const dis = await server.getPrimaryService("device_information");
+        const rev = await (await dis.getCharacteristic("software_revision_string")).readValue();
+        const m = new TextDecoder().decode(rev).match(/(\d+)\.(\d+)/);
+        if (m) ble.profile = [+m[1], +m[2]];
+      } catch (e) { /* tidak ada info versi */ }
+      const newStdio = ble.profile ? (ble.profile[0] > 1 || ble.profile[1] >= 3) : ble.hasCaps;
+      ble.nusRx = null;
+      if (!newStdio) try {
         const nus = await server.getPrimaryService(NUS_SVC);
         ble.nusRx = await nus.getCharacteristic(NUS_RX);
         const tx = await nus.getCharacteristic(NUS_TX);
@@ -2747,7 +2760,7 @@ else if (typeof exports === 'object')
       $("hubName").textContent = device.name || "Hub Pybricks";
       $("dPlate").textContent = (device.name || "MAZE-BOT").toUpperCase();
       note("Tersambung. Klik <b>Jalankan program</b> (atau tekan tombol hub) untuk mulai. Data rute muncul begitu robot selesai kalibrasi.");
-      consoleLine("# tersambung ke " + (device.name || "hub") + (ble.nusRx ? " (stdio lewat UART)" : ""), "ln-a");
+      consoleLine("# tersambung ke " + (device.name || "hub") + (ble.profile ? " · Pybricks Profile " + ble.profile.join(".") : "") + (ble.nusRx ? " · stdio lewat UART" : ""), "ln-a");
     } catch (e) {
       if (e && e.name === "NotFoundError") { setConn("off", "Belum tersambung"); note("Pemilihan hub dibatalkan. Pastikan hub menyala dan Pybricks Code sudah diputuskan, lalu coba lagi."); return; }
       if (e && e.name === "SecurityError") { setConn("err", "Diblokir"); note("Halaman ini tidak diizinkan memakai Bluetooth. Unduh file <b>maze-tracker-live.html</b> dan buka langsung di Chrome/Edge.", true); return; }
@@ -3111,7 +3124,7 @@ else if (typeof exports === 'object')
   }
   async function uploadAndRun(code) {
     if (!ble.cmd) { note("Sambungkan hub dulu.", true); return false; }
-    if (ble.nusRx) { note("Firmware hub terlalu lama untuk upload dari browser. Update firmware Pybricks di code.pybricks.com.", true); return false; }
+    if (!ble.hasCaps) { note("Hub ini tidak melaporkan kemampuan upload (Pybricks Profile di bawah 1.2). Update firmware Pybricks lewat code.pybricks.com, lalu sambung ulang.", true); return false; }
     if (ble.uploading) return false;
     ble.uploading = true;
     try {
